@@ -1,0 +1,16 @@
+aiohttp>=3.9
+numpy>=1.26
+av>=12
+
+[ai]
+shazamio>=0.6
+edge-tts>=6.1
+
+[dev]
+pytest
+pytest-aiohttp
+pytest-asyncio
+fakeredis
+
+[redis]
+redis>=5

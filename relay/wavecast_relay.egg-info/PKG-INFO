@@ -1,0 +1,19 @@
+Metadata-Version: 2.4
+Name: wavecast-relay
+Version: 0.2.0
+Summary: WaveCast relay: трансляция звука с телефона/ПК слушателям в браузере, с ИИ-плагинами
+License: MIT
+Requires-Python: >=3.10
+Requires-Dist: aiohttp>=3.9
+Requires-Dist: numpy>=1.26
+Requires-Dist: av>=12
+Provides-Extra: ai
+Requires-Dist: shazamio>=0.6; extra == "ai"
+Requires-Dist: edge-tts>=6.1; extra == "ai"
+Provides-Extra: redis
+Requires-Dist: redis>=5; extra == "redis"
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-aiohttp; extra == "dev"
+Requires-Dist: pytest-asyncio; extra == "dev"
+Requires-Dist: fakeredis; extra == "dev"

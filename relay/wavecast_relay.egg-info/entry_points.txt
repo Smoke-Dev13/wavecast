@@ -1,0 +1,2 @@
+[console_scripts]
+wavecast-relay = wavecast.server:main

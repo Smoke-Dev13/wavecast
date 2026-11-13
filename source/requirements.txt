@@ -1,0 +1,4 @@
+aiohttp>=3.9
+numpy>=1.26
+soundcard>=0.4.3
+av>=12

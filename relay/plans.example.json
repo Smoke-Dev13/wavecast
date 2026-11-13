@@ -1,0 +1,16 @@
+{
+  "free": {
+    "max_listeners": 10,
+    "plugins": ["denoise", "loudnorm"],
+    "opus_bitrate": 96000
+  },
+  "pro": {
+    "max_listeners": 200,
+    "plugins": ["denoise", "loudnorm", "recognize", "dj"],
+    "opus_bitrate": 160000,
+    "plugin_config": {
+      "recognize": {"backend": "shazam", "interval_s": 20},
+      "dj": {"min_gap_s": 120, "chance": 0.7, "voice": "ru-RU-SvetlanaNeural"}
+    }
+  }
+}

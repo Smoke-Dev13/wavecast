@@ -1,0 +1,20 @@
+# Один сервер:            docker compose up -d --build
+# Кластер (3 инстанса):   docker compose --profile cluster up -d --build --scale wavecast=3
+services:
+  wavecast:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${WAVECAST_BIND:-8080}:8080"
+    env_file: .env
+    volumes:
+      - wavecast-data:/data
+
+  redis:
+    image: redis:7-alpine
+    profiles: [cluster]
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+
+volumes:
+  wavecast-data:

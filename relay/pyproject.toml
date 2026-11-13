@@ -1,0 +1,36 @@
+[project]
+name = "wavecast-relay"
+version = "0.2.0"
+description = "WaveCast relay: трансляция звука с телефона/ПК слушателям в браузере, с ИИ-плагинами"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+  "aiohttp>=3.9",
+  "numpy>=1.26",
+  "av>=12",
+]
+
+[project.optional-dependencies]
+ai = ["shazamio>=0.6", "edge-tts>=6.1"]
+redis = ["redis>=5"]
+dev = ["pytest", "pytest-aiohttp", "pytest-asyncio", "fakeredis"]
+
+[project.scripts]
+wavecast-relay = "wavecast.server:main"
+
+# Пример подключения стороннего плагина:
+# [project.entry-points."wavecast.plugins"]
+# myplugin = "my_package.module:MyPlugin"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["wavecast", "wavecast.plugins"]
+
+[tool.setuptools.package-data]
+wavecast = ["static/*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

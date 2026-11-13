@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b0f14">
+<title>WaveCast</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Crect width=%2224%22 height=%2224%22 rx=%225%22 fill=%22%230b0f14%22/%3E%3Cpath fill=%22%234ade80%22 d=%22M5 10h2v4H5zM9 7h2v10H9zM13 4h2v16h-2zM17 9h2v6h-2z%22/%3E%3C/svg%3E">
+<style>
+  :root { color-scheme: dark; --acc: #4ade80; --mut: #8b98a5; --card: #131a22; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+         font: 16px/1.4 system-ui, -apple-system, sans-serif; background: #0b0f14; color: #e6edf3; }
+  .card { width: min(94vw, 400px); padding: 26px; border-radius: 22px; background: var(--card);
+          box-shadow: 0 10px 40px #0008; text-align: center; }
+  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: .5px; }
+  .room { font-size: 13px; color: var(--mut); background: #0b0f14; padding: 4px 10px; border-radius: 99px; }
+  .sub { color: var(--mut); font-size: 14px; margin: 6px 0 18px; text-align: left; }
+  .now { display: none; gap: 14px; align-items: center; text-align: left; background: #0b0f14;
+         border-radius: 14px; padding: 10px; margin-bottom: 16px; }
+  .now img { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; background: #1f2933; }
+  .now .t { font-weight: 600; } .now .a { color: var(--mut); font-size: 14px; }
+  .now a { color: inherit; text-decoration: none; }
+  .dj { display: none; text-align: left; font-size: 14px; background: #10251a; border: 1px solid #1f4d33;
+        color: #bbf7d0; border-radius: 12px; padding: 10px 12px; margin-bottom: 16px; }
+  button { width: 100%; padding: 16px; font-size: 18px; font-weight: 600; border: 0; border-radius: 14px;
+           background: var(--acc); color: #06210f; cursor: pointer; }
+  button.stop { background: #2a3440; color: #e6edf3; }
+  button.ghost { background: transparent; color: var(--mut); font-size: 14px; padding: 10px; font-weight: 500; }
+  .row { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+  input[type=range] { flex: 1; accent-color: var(--acc); }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #555; margin-right: 6px; }
+  .dot.live { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+  .stats { margin-top: 16px; font-size: 13px; color: var(--mut); display: grid; grid-template-columns: 1fr 1fr; gap: 6px; text-align: left; }
+  .stats b { color: #e6edf3; font-weight: 500; }
+  canvas { width: 100%; height: 44px; margin-top: 16px; }
+  .err { color: #fca5a5; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="top"><h1>WaveCast</h1><span class="room" id="room"></span></div>
+  <div class="sub" id="state"><span class="dot"></span>подключение…</div>
+  <div class="now" id="now"><img id="cover" alt=""><div><a id="tlink" target="_blank" rel="noopener"><div class="t" id="title"></div><div class="a" id="artist"></div></a></div></div>
+  <div class="dj" id="dj"></div>
+  <button id="btn">▶ Слушать</button>
+  <canvas id="viz" width="600" height="88"></canvas>
+  <div class="row">🔈<input id="vol" type="range" min="0" max="1" step="0.01" value="1">🔊</div>
+  <div class="row"><span style="font-size:13px;color:var(--mut)">Буфер</span>
+    <input id="buf" type="range" min="80" max="1500" step="10" value="250"><span id="bufv" style="font-size:13px;width:56px">250 мс</span></div>
+  <div class="stats">
+    <div>Слушателей: <b id="cnt">–</b></div>
+    <div>Задержка: <b id="lat">–</b></div>
+    <div>Кодек: <b id="fmt">–</b></div>
+    <div>Провалы: <b id="und">0</b></div>
+  </div>
+  <button class="ghost" id="share">Поделиться ссылкой</button>
+</div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const m = location.pathname.match(/^\/r\/([^/]+)/);
+  const room = m ? decodeURIComponent(m[1]) : '';
+  $('room').textContent = room || 'main';
+  const base = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + (room ? '/ws/' + encodeURIComponent(room) : '/ws');
+  const OPUS_CFG = { codec: 'opus', sampleRate: 48000, numberOfChannels: 2 };
+
+  let ws, ctx, gain, analyser, dec, playing = false, codec = 'pcm', wantOpus = false;
+  let fmt = { rate: 48000, channels: 2 }, ts = 0;
+  let nextTime = 0, underruns = 0, target = 0.25, retry = 500;
+
+  const setState = (txt, live, err) => { $('state').innerHTML = `<span class="dot ${live ? 'live' : ''}"></span><span class="${err ? 'err' : ''}">${txt}</span>`; };
+
+  async function opusSupported() {
+    try { return typeof AudioDecoder !== 'undefined' && (await AudioDecoder.isConfigSupported(OPUS_CFG)).supported; }
+    catch { return false; }
+  }
+
+  function connect() {
+    codec = wantOpus ? 'opus' : 'pcm';
+    ws = new WebSocket(base + '?codec=' + codec);
+    ws.binaryType = 'arraybuffer';
+    ws.onopen = () => { retry = 500; setState('подключено, ждём эфир', false); };
+    ws.onclose = () => { setState('нет связи, переподключаюсь…', false); setTimeout(connect, retry); retry = Math.min(retry * 2, 8000); };
+    ws.onmessage = ev => typeof ev.data === 'string' ? onText(JSON.parse(ev.data)) : onAudio(ev.data);
+  }
+
+  function onText(m) {
+    switch (m.type) {
+      case 'format':
+        fmt = m; nextTime = 0;
+        if (m.codec === 'pcm_s16le') codec = 'pcm';      // локальный режим телефона: всегда PCM
+        $('fmt').textContent = (codec === 'opus' ? 'Opus ' : 'PCM ') + (m.rate / 1000) + ' кГц';
+        break;
+      case 'status':
+        $('cnt').textContent = m.listeners;
+        setState(m.live ? 'в эфире' : 'эфир не идёт', m.live);
+        if (!m.live) { $('now').style.display = 'none'; }
+        break;
+      case 'track':
+        $('title').textContent = m.title || ''; $('artist').textContent = m.artist || '';
+        $('cover').src = m.cover || ''; $('cover').style.visibility = m.cover ? 'visible' : 'hidden';
+        if (m.url) $('tlink').href = m.url; else $('tlink').removeAttribute('href');
+        $('now').style.display = 'flex';
+        document.title = `${m.title} — ${m.artist} · WaveCast`;
+        break;
+      case 'dj':
+        $('dj').textContent = '🎙 ' + m.text; $('dj').style.display = 'block';
+        clearTimeout(onText.djt); onText.djt = setTimeout(() => $('dj').style.display = 'none', 20000);
+        break;
+      case 'error':
+        setState(m.message, false, true); retry = 30000;
+        break;
+    }
+  }
+
+  function onAudio(buf) {
+    if (!playing) return;
+    if (codec === 'opus') {
+      if (!dec || dec.state === 'closed') makeDecoder();
+      dec.decode(new EncodedAudioChunk({ type: 'key', timestamp: ts, data: buf }));
+      ts += 20000;
+      return;
+    }
+    const ch = fmt.channels || 2, pcm = new Int16Array(buf), frames = pcm.length / ch;
+    if (!frames) return;
+    const ab = ctx.createBuffer(ch, frames, fmt.rate || 48000);
+    for (let c = 0; c < ch; c++) {
+      const out = ab.getChannelData(c);
+      for (let i = 0, j = c; i < frames; i++, j += ch) out[i] = pcm[j] / 32768;
+    }
+    schedule(ab);
+  }
+
+  function makeDecoder() {
+    dec = new AudioDecoder({
+      output: ad => {
+        const n = ad.numberOfFrames, ch = ad.numberOfChannels, ab = ctx.createBuffer(ch, n, ad.sampleRate);
+        try {
+          for (let c = 0; c < ch; c++) { const t = new Float32Array(n); ad.copyTo(t, { planeIndex: c, format: 'f32-planar' }); ab.copyToChannel(t, c); }
+        } catch {   // браузер не умеет конвертировать — разбираем interleaved сами
+          const t = new Float32Array(n * ch); ad.copyTo(t, { planeIndex: 0 });
+          for (let c = 0; c < ch; c++) { const o = ab.getChannelData(c); for (let i = 0; i < n; i++) o[i] = t[i * ch + c]; }
+        }
+        ad.close();
+        schedule(ab);
+      },
+      error: e => { console.warn('opus decoder', e); wantOpus = false; ws.close(); }   // откат на PCM
+    });
+    dec.configure(OPUS_CFG);
+  }
+
+  function schedule(ab) {
+    const now = ctx.currentTime;
+    if (nextTime < now + 0.02) {
+      if (nextTime) { underruns++; $('und').textContent = underruns; }
+      nextTime = now + target;
+    } else if (nextTime - now > target + 0.5) {
+      nextTime = now + target;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = ab; src.connect(gain); src.start(nextTime);
+    nextTime += ab.duration;
+    $('lat').textContent = Math.round((nextTime - now) * 1000) + ' мс';
+  }
+
+  function draw() {
+    const cv = $('viz'), g = cv.getContext('2d'), data = new Uint8Array(analyser.frequencyBinCount);
+    (function loop() {
+      requestAnimationFrame(loop);
+      analyser.getByteFrequencyData(data);
+      g.clearRect(0, 0, cv.width, cv.height);
+      const n = 48, w = cv.width / n;
+      g.fillStyle = '#4ade80';
+      for (let i = 0; i < n; i++) {
+        const h = Math.max(2, data[Math.floor(i * data.length / n / 2)] / 255 * cv.height);
+        g.fillRect(i * w + 2, (cv.height - h) / 2, w - 4, h);
+      }
+    })();
+  }
+
+  $('btn').onclick = async () => {
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+      gain = ctx.createGain(); analyser = ctx.createAnalyser(); analyser.fftSize = 256;
+      gain.connect(analyser); analyser.connect(ctx.destination);
+      gain.gain.value = +$('vol').value;
+      draw();
+    }
+    if (!playing) { await ctx.resume(); playing = true; nextTime = 0; $('btn').textContent = '■ Стоп'; $('btn').className = 'stop'; }
+    else { playing = false; await ctx.suspend(); $('btn').textContent = '▶ Слушать'; $('btn').className = ''; }
+  };
+  $('vol').oninput = e => { if (gain) gain.gain.value = +e.target.value; };
+  $('buf').oninput = e => { target = e.target.value / 1000; $('bufv').textContent = e.target.value + ' мс'; };
+  $('share').onclick = async () => {
+    const url = location.href;
+    try { if (navigator.share) return await navigator.share({ title: 'WaveCast', url }); } catch { return; }
+    try { await navigator.clipboard.writeText(url); $('share').textContent = 'Ссылка скопирована'; } catch { prompt('Ссылка:', url); }
+  };
+
+  opusSupported().then(ok => { wantOpus = ok; connect(); });
+})();
+</script>
+</body>
+</html>
