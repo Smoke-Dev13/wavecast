@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="utf-8"><title>WaveCast host</title></head>
+<body>
+<pre id="log"></pre>
+<script>
+// Страница ведущего. Работает в скрытом WebView внутри Android-приложения:
+// берёт PCM с локального сервера приложения (ws://127.0.0.1:<порт>/ws), превращает его
+// в аудиодорожку и раздаёт слушателям напрямую по WebRTC (Opus кодирует сам движок).
+//
+// Параметры в #hash: signal=wss://host  room=<комната>  key=<ключ ведущего>
+//                    src=ws://...  max=<слушателей>  bitrate=<бит/с>
+(() => {
+  const P = new URLSearchParams(location.hash.slice(1));
+  const signal = (P.get('signal') || '').replace(/^http/, 'ws').replace(/\/+$/, '');
+  const room = P.get('room') || '', key = P.get('key') || '';
+  const srcUrl = P.get('src') || `ws://${location.host}/ws`;
+  const MAX = +(P.get('max') || 30), BITRATE = +(P.get('bitrate') || 128000);
+  const RATE = 48000, CH = 2;
+
+  const peers = new Map();   // id слушателя → RTCPeerConnection
+  let sig, ice = [], track, stream, sigUp = false, error = null, retry = 500, fatal = false, lastStatus = '';
+
+  const connected = () => [...peers.values()].filter(p => p.connectionState === 'connected').length;
+  function report() {
+    const s = { signal: sigUp, listeners: connected(), pending: peers.size - connected(), error };
+    document.getElementById('log').textContent = JSON.stringify(s);
+    try { window.WaveCastHost && window.WaveCastHost.onState(JSON.stringify(s)); } catch {}
+    const st = JSON.stringify({ type: 'status', live: true, listeners: s.listeners });
+    if (st !== lastStatus && sigUp) { lastStatus = st; send(JSON.parse(st)); }
+  }
+  const send = o => { if (sig && sig.readyState === 1) sig.send(JSON.stringify(o)); };
+
+  // ---------- звук: PCM s16le → AudioWorklet (кольцевой буфер) → MediaStreamTrack ----------
+  const WORKLET = `
+  class Pcm extends AudioWorkletProcessor {
+    constructor() {
+      super();
+      this.cap = ${RATE} * 2;                         // 2 с
+      this.buf = [new Float32Array(this.cap), new Float32Array(this.cap)];
+      this.r = 0; this.w = 0; this.fill = 0; this.primed = false;
+      this.low = ${RATE} * 0.12; this.high = ${RATE} * 0.6;
+      this.port.onmessage = e => {
+        const pcm = new Int16Array(e.data), n = pcm.length >> 1;
+        for (let i = 0; i < n; i++) {
+          this.buf[0][this.w] = pcm[2 * i] / 32768; this.buf[1][this.w] = pcm[2 * i + 1] / 32768;
+          this.w = (this.w + 1) % this.cap;
+        }
+        this.fill += n;
+        if (this.fill > this.high) {                  // накопилась задержка: перескакиваем к свежему
+          const skip = this.fill - this.low; this.r = (this.r + skip) % this.cap; this.fill -= skip;
+        }
+      };
+    }
+    process(_, outputs) {
+      const out = outputs[0], n = out[0].length;
+      if (!this.primed && this.fill >= this.low) this.primed = true;
+      if (!this.primed || this.fill < n) { this.primed = false; return true; }   // тишина, пока буфер не наберётся
+      for (let i = 0; i < n; i++) {
+        out[0][i] = this.buf[0][this.r]; if (out[1]) out[1][i] = this.buf[1][this.r];
+        this.r = (this.r + 1) % this.cap;
+      }
+      this.fill -= n;
+      return true;
+    }
+  }
+  registerProcessor('pcm', Pcm);`;
+
+  async function startAudio() {
+    const ctx = new AudioContext({ sampleRate: RATE, latencyHint: 'playback' });
+    await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' })));
+    const node = new AudioWorkletNode(ctx, 'pcm', { numberOfInputs: 0, outputChannelCount: [CH] });
+    const dest = ctx.createMediaStreamDestination();
+    dest.channelCount = CH;
+    node.connect(dest);
+    await ctx.resume();
+    stream = dest.stream; track = stream.getAudioTracks()[0];
+    track.contentHint = 'music';
+    (function pcm() {
+      const ws = new WebSocket(srcUrl);
+      ws.binaryType = 'arraybuffer';
+      ws.onmessage = e => { if (typeof e.data !== 'string') node.port.postMessage(e.data, [e.data]); };
+      ws.onclose = () => setTimeout(pcm, 1000);
+    })();
+  }
+
+  // ---------- WebRTC ----------
+  const musicSdp = sdp => sdp.replace(/a=fmtp:(\d+) (.*useinbandfec=1[^\r\n]*)/g,
+    (s, pt, rest) => /stereo=1/.test(rest) ? s : `a=fmtp:${pt} ${rest};stereo=1;sprop-stereo=1;maxaveragebitrate=${BITRATE}`);
+
+  function close(id) { const p = peers.get(id); if (p) { p.onconnectionstatechange = null; p.close(); peers.delete(id); } }
+
+  async function offer(id) {
+    const old = peers.get(id);
+    if (old && ['connected', 'connecting'].includes(old.connectionState)) return;   // уже слушает
+    close(id);
+    if (peers.size >= MAX) return send({ to: id, type: 'full' });
+    const pc = new RTCPeerConnection({ iceServers: ice });
+    peers.set(id, pc);
+    const sender = pc.addTrack(track, stream);
+    pc.onicecandidate = e => { if (e.candidate) send({ to: id, type: 'ice', candidate: e.candidate }); };
+    pc.onconnectionstatechange = () => {
+      if (['failed', 'closed'].includes(pc.connectionState)) close(id);
+      report();
+    };
+    const off = await pc.createOffer();
+    off.sdp = musicSdp(off.sdp);
+    await pc.setLocalDescription(off);
+    const prm = sender.getParameters();
+    if (prm.encodings && prm.encodings[0]) { prm.encodings[0].maxBitrate = BITRATE; sender.setParameters(prm).catch(() => {}); }
+    send({ to: id, type: 'offer', sdp: off.sdp });
+    report();
+  }
+
+  async function onSignal(d) {
+    const p = peers.get(d.from);
+    switch (d.type) {
+      case 'hello': ice = d.iceServers || []; break;
+      case 'join': await offer(d.from); break;
+      case 'answer': if (p && p.signalingState === 'have-local-offer') await p.setRemoteDescription({ type: 'answer', sdp: musicSdp(d.sdp) }); break;
+      case 'ice': if (p && d.candidate) await p.addIceCandidate(d.candidate).catch(() => {}); break;
+      case 'leave': close(d.from); report(); break;
+      case 'error': fatal = true; error = d.message || d.code; report(); break;
+    }
+  }
+
+  function connect() {
+    sig = new WebSocket(`${signal}/signal/${encodeURIComponent(room)}?role=host&key=${encodeURIComponent(key)}`);
+    sig.onopen = () => { sigUp = true; error = null; retry = 500; lastStatus = ''; report(); };
+    sig.onmessage = e => onSignal(JSON.parse(e.data)).catch(err => console.warn('signal', err));
+    sig.onclose = e => {
+      sigUp = false;
+      if (e.code === 4001) { fatal = true; error = 'эфир в этой комнате запущен с другого устройства'; }
+      else if (!fatal) { error = 'нет связи с сервисом'; setTimeout(connect, retry); retry = Math.min(retry * 2, 10000); }
+      report();   // уже подключённые слушатели продолжают слышать: звук идёт напрямую
+    };
+  }
+
+  if (!signal || !room || !key) { error = 'не заданы signal/room/key'; report(); return; }
+  startAudio().then(connect).catch(e => { error = 'звук: ' + e.message; report(); });
+  setInterval(report, 3000);
+})();
+</script>
+</body>
+</html>

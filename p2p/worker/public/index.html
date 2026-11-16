@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b0f14">
+<title>WaveCast</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Crect width=%2224%22 height=%2224%22 rx=%225%22 fill=%22%230b0f14%22/%3E%3Cpath fill=%22%234ade80%22 d=%22M5 10h2v4H5zM9 7h2v10H9zM13 4h2v16h-2zM17 9h2v6h-2z%22/%3E%3C/svg%3E">
+<style>
+  :root { color-scheme: dark; --acc: #4ade80; --mut: #8b98a5; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+         font: 16px/1.4 system-ui, -apple-system, sans-serif; background: #0b0f14; color: #e6edf3; }
+  .card { width: min(94vw, 400px); padding: 26px; border-radius: 22px; background: #131a22;
+          box-shadow: 0 10px 40px #0008; text-align: center; }
+  .top { display: flex; justify-content: space-between; align-items: center; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: .5px; }
+  .room { font-size: 13px; color: var(--mut); background: #0b0f14; padding: 4px 10px; border-radius: 99px; }
+  .sub { color: var(--mut); font-size: 14px; margin: 8px 0 18px; text-align: left; min-height: 20px; }
+  .now { display: none; text-align: left; background: #0b0f14; border-radius: 14px; padding: 12px; margin-bottom: 16px; }
+  .now .t { font-weight: 600; } .now .a { color: var(--mut); font-size: 14px; }
+  button { width: 100%; padding: 16px; font-size: 18px; font-weight: 600; border: 0; border-radius: 14px;
+           background: var(--acc); color: #06210f; cursor: pointer; }
+  button.stop { background: #2a3440; color: #e6edf3; }
+  button.ghost { background: transparent; color: var(--mut); font-size: 14px; padding: 10px; font-weight: 500; margin-top: 8px; }
+  .row { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+  input[type=range] { flex: 1; accent-color: var(--acc); }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #555; margin-right: 6px; }
+  .dot.live { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+  .stats { margin-top: 16px; font-size: 13px; color: var(--mut); display: grid; grid-template-columns: 1fr 1fr; gap: 6px; text-align: left; }
+  .stats b { color: #e6edf3; font-weight: 500; }
+  canvas { width: 100%; height: 44px; margin-top: 16px; }
+  .err { color: #fca5a5; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="top"><h1>WaveCast</h1><span class="room" id="room"></span></div>
+  <div class="sub" id="state"><span class="dot"></span>подключение…</div>
+  <div class="now" id="now"><div class="t" id="title"></div><div class="a" id="artist"></div></div>
+  <button id="btn">▶ Слушать</button>
+  <canvas id="viz" width="600" height="88"></canvas>
+  <div class="row">🔈<input id="vol" type="range" min="0" max="1" step="0.01" value="1">🔊</div>
+  <div class="stats">
+    <div>Слушателей: <b id="cnt">–</b></div>
+    <div>Связь: <b id="link">–</b></div>
+  </div>
+  <button class="ghost" id="share">Поделиться ссылкой</button>
+  <audio id="audio" playsinline></audio>
+</div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const m = location.pathname.match(/^\/r\/([^/]+)/);
+  const room = m ? decodeURIComponent(m[1]).toLowerCase() : '';
+  const audio = $('audio');
+  let ws, pc, ice = [], live = false, wanted = false, retry = 500, rejoin, fatal = false, viz;
+
+  const setState = (txt, on, err) => { $('state').innerHTML = `<span class="dot ${on ? 'live' : ''}"></span><span class="${err ? 'err' : ''}">${txt}</span>`; };
+  const send = o => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); };
+
+  if (!room) { setState('Открой ссылку на эфир, которую прислал ведущий', false); $('btn').disabled = true; return; }
+  $('room').textContent = room;
+
+  // Opus по умолчанию моно и ~32 кбит/с: просим у ведущего стерео и музыкальный битрейт
+  const musicSdp = sdp => sdp.replace(/a=fmtp:(\d+) (.*useinbandfec=1[^\r\n]*)/g,
+    (s, pt, rest) => /stereo=1/.test(rest) ? s : `a=fmtp:${pt} ${rest};stereo=1;sprop-stereo=1;maxaveragebitrate=160000`);
+
+  function connect() {
+    ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/signal/' + encodeURIComponent(room) + '?role=listener');
+    ws.onopen = () => { retry = 500; };
+    ws.onclose = () => {
+      if (fatal) return;
+      if (!pc || pc.connectionState !== 'connected') setState('нет связи с сервисом, переподключаюсь…', false);
+      setTimeout(connect, retry); retry = Math.min(retry * 2, 8000);
+    };
+    ws.onmessage = ev => onSignal(JSON.parse(ev.data)).catch(e => console.warn('signal', e));
+  }
+
+  async function onSignal(d) {
+    switch (d.type) {
+      case 'hello':
+        ice = d.iceServers || []; live = d.live;
+        if (!pc || pc.connectionState !== 'connected') setState(live ? 'ведущий в сети, соединяюсь…' : 'эфир не идёт — жди ведущего', false);
+        break;
+      case 'offer': {
+        drop();
+        const p = pc = new RTCPeerConnection({ iceServers: ice });
+        p.onicecandidate = e => { if (e.candidate) send({ type: 'ice', candidate: e.candidate }); };
+        p.ontrack = e => { audio.srcObject = e.streams[0] || new MediaStream([e.track]); if (wanted) play(); };
+        p.onconnectionstatechange = () => { if (p === pc) onLink(p.connectionState); };
+        await p.setRemoteDescription(d);
+        const ans = await p.createAnswer();
+        ans.sdp = musicSdp(ans.sdp);
+        await p.setLocalDescription(ans);
+        send({ type: 'answer', sdp: ans.sdp });
+        break;
+      }
+      case 'ice':
+        if (pc && d.candidate) await pc.addIceCandidate(d.candidate).catch(() => {});
+        break;
+      case 'status':
+        live = d.live !== false;
+        if ('listeners' in d) $('cnt').textContent = d.listeners;
+        if (!live) { drop(); $('now').style.display = 'none'; $('cnt').textContent = '–'; setState('эфир завершён — жди ведущего', false); }
+        if (d.title) {
+          $('title').textContent = d.title; $('artist').textContent = d.artist || ''; $('now').style.display = 'block';
+          if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: d.title, artist: d.artist || 'WaveCast' });
+        }
+        break;
+      case 'full':
+        setState('Мест нет: у ведущего максимум слушателей', false, true);
+        break;
+      case 'error':
+        fatal = true; setState(d.message || 'ошибка', false, true);
+        break;
+    }
+  }
+
+  function onLink(st) {
+    clearTimeout(rejoin);
+    $('link').textContent = { connected: 'напрямую', connecting: 'соединение…', disconnected: 'потеряна', failed: 'не удалось' }[st] || '–';
+    if (st === 'connected') { setState('в эфире', true); report(); }
+    else if (st === 'disconnected') { setState('связь прервалась, жду…', false); rejoin = setTimeout(() => send({ type: 'join' }), 4000); }
+    else if (st === 'failed') { setState('не удалось соединиться напрямую, пробую ещё…', false, true); rejoin = setTimeout(() => send({ type: 'join' }), 1500); }
+  }
+
+  // показываем, идёт ли звук напрямую или через TURN-ретранслятор
+  async function report() {
+    try {
+      const st = await pc.getStats(); let pair;
+      st.forEach(r => { if (r.type === 'transport' && r.selectedCandidatePairId) pair = st.get(r.selectedCandidatePairId); });
+      const loc = pair && st.get(pair.localCandidateId);
+      if (loc) $('link').textContent = loc.candidateType === 'relay' ? 'через TURN' : 'напрямую';
+    } catch {}
+  }
+
+  function drop() { clearTimeout(rejoin); if (pc) { pc.onconnectionstatechange = null; pc.close(); pc = null; } $('link').textContent = '–'; }
+
+  async function play() {
+    try {
+      await audio.play();
+      $('btn').textContent = '■ Стоп'; $('btn').className = 'stop';
+      startViz();
+    } catch { wanted = false; $('btn').textContent = '▶ Нажми ещё раз'; }
+  }
+
+  $('btn').onclick = () => {
+    wanted = !wanted;
+    if (wanted) { if (audio.srcObject) play(); else { $('btn').textContent = '■ Стоп (жду эфир)'; $('btn').className = 'stop'; } }
+    else { audio.pause(); $('btn').textContent = '▶ Слушать'; $('btn').className = ''; }
+  };
+  $('vol').oninput = e => { audio.volume = +e.target.value; };
+  $('share').onclick = async () => {
+    const url = location.href;
+    try { if (navigator.share) return await navigator.share({ title: 'WaveCast', url }); } catch { return; }
+    try { await navigator.clipboard.writeText(url); $('share').textContent = 'Ссылка скопирована'; } catch { prompt('Ссылка:', url); }
+  };
+
+  function startViz() {
+    if (viz || !audio.srcObject) return;
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const an = ctx.createAnalyser(); an.fftSize = 256;
+      let src;
+      const attach = () => { try { src && src.disconnect(); } catch {} src = ctx.createMediaStreamSource(audio.srcObject); src.connect(an); };
+      attach(); audio.addEventListener('loadedmetadata', attach);
+      const cv = $('viz'), g = cv.getContext('2d'), data = new Uint8Array(an.frequencyBinCount);
+      viz = true;
+      (function loop() {
+        requestAnimationFrame(loop);
+        an.getByteFrequencyData(data);
+        g.clearRect(0, 0, cv.width, cv.height);
+        const n = 48, w = cv.width / n; g.fillStyle = '#4ade80';
+        for (let i = 0; i < n; i++) {
+          const h = Math.max(2, data[Math.floor(i * data.length / n / 2)] / 255 * cv.height);
+          g.fillRect(i * w + 2, (cv.height - h) / 2, w - 4, h);
+        }
+      })();
+    } catch {}
+  }
+
+  connect();
+})();
+</script>
+</body>
+</html>

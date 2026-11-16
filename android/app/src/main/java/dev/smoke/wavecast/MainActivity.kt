@@ -6,6 +6,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Typeface
 import android.media.projection.MediaProjectionManager
@@ -15,34 +16,37 @@ import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
+import java.security.SecureRandom
 
 class MainActivity : Activity() {
 
     private val prefs by lazy { getSharedPreferences("wavecast", MODE_PRIVATE) }
 
-    private lateinit var cbLocal: CheckBox
-    private lateinit var etPort: EditText
-    private lateinit var cbRelay: CheckBox
-    private lateinit var etUrl: EditText
-    private lateinit var etKey: EditText
+    private lateinit var etService: EditText
+    private lateinit var etRoom: EditText
     private lateinit var btn: Button
+    private lateinit var btnShare: Button
     private lateinit var tvStatus: TextView
+    private lateinit var tvLink: TextView
+    private lateinit var ivQr: ImageView
+    private var qrFor: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(buildUi())
-        cbLocal.isChecked = prefs.getBoolean("local", true)
-        etPort.setText(prefs.getInt("port", 8080).toString())
-        cbRelay.isChecked = prefs.getBoolean("relay", false)
-        etUrl.setText(prefs.getString("url", ""))
-        etKey.setText(prefs.getString("key", ""))
+        etService.setText(prefs.getString("service", ""))
+        etRoom.setText(prefs.getString("room", null) ?: random(ROOM_CHARS, 6))
         btn.setOnClickListener { if (CaptureService.status.running) stop() else askPermissions() }
+        btnShare.setOnClickListener { share() }
+        tvLink.setOnClickListener { copyLink() }
     }
 
     override fun onResume() {
@@ -58,10 +62,16 @@ class MainActivity : Activity() {
 
     // ---- запуск ----
 
+    private fun room() = etRoom.text.toString().trim().lowercase()
+
+    private fun hostKey(): String =
+        prefs.getString("hostKey", null) ?: random(KEY_CHARS, 32).also { prefs.edit().putString("hostKey", it).apply() }
+
     private fun askPermissions() {
-        if (!cbLocal.isChecked && !cbRelay.isChecked) { toast("Включи хотя бы один режим"); return }
-        if (cbRelay.isChecked && etUrl.text.isBlank()) { toast("Укажи адрес relay-сервера"); return }
-        savePrefs()
+        if (etService.text.isNotBlank() && !ROOM_RE.matches(room())) {
+            toast("Название эфира: латиница, цифры, - и _"); return
+        }
+        prefs.edit().putString("service", etService.text.toString().trim()).putString("room", room()).apply()
         val need = mutableListOf(Manifest.permission.RECORD_AUDIO)
         if (Build.VERSION.SDK_INT >= 33) need += Manifest.permission.POST_NOTIFICATIONS
         val missing = need.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
@@ -91,10 +101,9 @@ class MainActivity : Activity() {
             .setAction(CaptureService.ACTION_START)
             .putExtra(CaptureService.EXTRA_CODE, resultCode)
             .putExtra(CaptureService.EXTRA_DATA, data)
-            .putExtra(CaptureService.EXTRA_LOCAL, cbLocal.isChecked)
-            .putExtra(CaptureService.EXTRA_PORT, port())
-            .putExtra(CaptureService.EXTRA_RELAY_URL, if (cbRelay.isChecked) etUrl.text.toString() else "")
-            .putExtra(CaptureService.EXTRA_RELAY_KEY, etKey.text.toString())
+            .putExtra(CaptureService.EXTRA_SERVICE, etService.text.toString().trim())
+            .putExtra(CaptureService.EXTRA_ROOM, room())
+            .putExtra(CaptureService.EXTRA_HOST_KEY, hostKey())
         startForegroundService(i)
     }
 
@@ -102,42 +111,42 @@ class MainActivity : Activity() {
         startService(Intent(this, CaptureService::class.java).setAction(CaptureService.ACTION_STOP))
     }
 
-    private fun port() = etPort.text.toString().toIntOrNull()?.takeIf { it in 1024..65535 } ?: 8080
-
-    private fun savePrefs() = prefs.edit()
-        .putBoolean("local", cbLocal.isChecked).putInt("port", port())
-        .putBoolean("relay", cbRelay.isChecked)
-        .putString("url", etUrl.text.toString().trim()).putString("key", etKey.text.toString())
-        .apply()
-
     // ---- UI ----
+
+    private fun link(s: CaptureService.Status) = s.p2pUrl ?: s.localUrls.firstOrNull()
 
     private fun render(s: CaptureService.Status) {
         val on = s.running
-        btn.text = if (on) "■  Остановить" else "▶  Начать трансляцию"
+        btn.text = if (on) "■  Остановить эфир" else "▶  В эфир"
         btn.setBackgroundColor(if (on) Color.parseColor("#2A3440") else ACCENT)
         btn.setTextColor(if (on) Color.WHITE else Color.parseColor("#06210F"))
-        listOf(cbLocal, etPort, cbRelay, etUrl, etKey).forEach { it.isEnabled = !on }
+        etService.isEnabled = !on
+        etRoom.isEnabled = !on
+
+        val url = if (on) link(s) else null
+        listOf(tvLink, ivQr, btnShare).forEach { it.visibility = if (url != null) View.VISIBLE else View.GONE }
+        if (url != null) {
+            tvLink.text = url
+            if (qrFor != url) { ivQr.setImageBitmap(qr(url)); qrFor = url }
+        }
 
         val sb = StringBuilder()
-        when {
-            s.error != null -> sb.append("⚠ ${s.error}\n")
-            !on -> sb.append("Включи трек в любом приложении и нажми «Начать».\n" +
-                    "Звук приложений, запретивших захват, передаваться не будет.\n")
-        }
-        if (on) {
+        if (s.error != null) sb.append("⚠ ${s.error}\n\n")
+        if (!on) {
+            sb.append("Нажми «В эфир», потом включай музыку в любом приложении — друзья услышат то же, что и ты.\n\n")
+            sb.append(if (etService.text.isBlank()) "Без адреса сервиса эфир доступен только в твоей Wi-Fi сети / точке доступа."
+                      else "Друзья подключаются по ссылке или QR-коду, из любой сети.")
+        } else {
             sb.append("● В ЭФИРЕ\n\n")
-            if (s.localUrls.isNotEmpty()) {
-                sb.append("Wi-Fi / точка доступа (слушателей: ${s.localListeners}):\n")
-                s.localUrls.forEach { sb.append("   $it\n") }
-                sb.append("\n")
-            } else if (cbLocal.isChecked) sb.append("Wi-Fi: нет локальной сети\n\n")
-            if (s.relayEnabled) {
-                sb.append("Relay: ")
-                sb.append(if (s.relayConnected) "подключено, слушателей: ${s.relayListeners}" else "переподключение… ${s.relayError ?: ""}")
-                sb.append("\n   ${etUrl.text.toString().trim().trimEnd('/')}\n")
+            if (s.p2pUrl != null) {
+                sb.append("По ссылке: слушателей ${s.p2pListeners}")
+                if (!s.p2pConnected) sb.append("\n⚠ ${s.p2pError ?: "подключаюсь к сервису…"}")
+                sb.append("\n\n")
             }
-            sb.append("\nНажми на текст, чтобы скопировать ссылку.")
+            if (s.localUrls.isNotEmpty()) {
+                sb.append("В твоей Wi-Fi сети, без интернета (слушателей ${s.localListeners}):\n")
+                s.localUrls.forEach { sb.append("   $it\n") }
+            } else if (s.p2pUrl == null) sb.append("Нет Wi-Fi сети: подключись к Wi-Fi или включи точку доступа.\n")
         }
         tvStatus.text = sb.toString()
     }
@@ -148,10 +157,9 @@ class MainActivity : Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(px(20), px(28), px(20), px(20))
-            setBackgroundColor(Color.parseColor("#0B0F14"))
         }
-        fun label(t: String, size: Float = 14f, bold: Boolean = false) = TextView(this).apply {
-            text = t; textSize = size; setTextColor(Color.parseColor("#E6EDF3"))
+        fun label(t: String, size: Float = 14f, bold: Boolean = false, color: String = "#E6EDF3") = TextView(this).apply {
+            text = t; textSize = size; setTextColor(Color.parseColor(color))
             if (bold) typeface = Typeface.DEFAULT_BOLD
             setPadding(0, px(6), 0, px(6))
         }
@@ -159,43 +167,54 @@ class MainActivity : Activity() {
             this.hint = hint; inputType = type; setSingleLine()
             setTextColor(Color.WHITE); setHintTextColor(Color.parseColor("#5B6875"))
         }
+        fun wide(top: Int = 0, bottom: Int = 0) = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = px(top); bottomMargin = px(bottom) }
 
         root.addView(label("WaveCast", 26f, true))
-        root.addView(label("Транслирует звук телефона друзьям в браузер").apply { setTextColor(Color.parseColor("#8B98A5")) })
+        root.addView(label("Твоё радио: друзья слышат то, что играет у тебя", color = "#8B98A5"))
 
-        cbLocal = CheckBox(this).apply { text = "Локально (Wi-Fi / точка доступа)"; setTextColor(Color.WHITE) }
-        etPort = field("Порт, по умолчанию 8080", InputType.TYPE_CLASS_NUMBER)
-        cbRelay = CheckBox(this).apply { text = "Через интернет (relay-сервер)"; setTextColor(Color.WHITE) }
-        etUrl = field("https://cast.example.com/r/party", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI)
-        etKey = field("Ключ трансляции (WAVECAST_KEY)", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
+        root.addView(label("Адрес сервиса", 12f, color = "#8B98A5"))
+        etService = field("wavecast.твой-аккаунт.workers.dev", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI)
+        root.addView(etService)
+        root.addView(label("Название эфира", 12f, color = "#8B98A5"))
+        etRoom = field("party", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI)
+        root.addView(etRoom)
 
-        listOf(cbLocal, etPort, cbRelay, etUrl, etKey).forEach { root.addView(it) }
+        btn = Button(this).apply { textSize = 18f; isAllCaps = false; setPadding(0, px(14), 0, px(14)) }
+        root.addView(btn, wide(top = 18, bottom = 14))
 
-        btn = Button(this).apply {
-            textSize = 18f; isAllCaps = false
-            setPadding(0, px(14), 0, px(14))
-        }
-        root.addView(btn, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = px(20); bottomMargin = px(16)
-        })
+        ivQr = ImageView(this).apply { visibility = View.GONE }
+        root.addView(ivQr, LinearLayout.LayoutParams(px(220), px(220)).apply { gravity = Gravity.CENTER_HORIZONTAL })
+        tvLink = label("", 15f, true, "#4ADE80").apply { gravity = Gravity.CENTER; visibility = View.GONE }
+        root.addView(tvLink, wide(top = 8))
+        btnShare = Button(this).apply { text = "Поделиться ссылкой"; isAllCaps = false; visibility = View.GONE }
+        root.addView(btnShare, wide(bottom = 10))
 
-        tvStatus = label("").apply {
-            gravity = Gravity.START
-            setTextIsSelectable(false)
-            setOnClickListener { copyLink() }
-        }
+        tvStatus = label("")
         root.addView(tvStatus)
 
         return ScrollView(this).apply { setBackgroundColor(Color.parseColor("#0B0F14")); addView(root) }
     }
 
+    private fun qr(text: String): Bitmap {
+        val n = 480
+        val m = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, n, n)
+        val px = IntArray(n * n) { if (m.get(it % n, it / n)) Color.BLACK else Color.WHITE }
+        return Bitmap.createBitmap(px, n, n, Bitmap.Config.RGB_565)
+    }
+
+    private fun share() {
+        val url = link(CaptureService.status) ?: return
+        val i = Intent(Intent.ACTION_SEND).setType("text/plain")
+            .putExtra(Intent.EXTRA_TEXT, "Слушай мой эфир в WaveCast: $url")
+        startActivity(Intent.createChooser(i, "Поделиться эфиром"))
+    }
+
     private fun copyLink() {
-        val s = CaptureService.status
-        val link = s.localUrls.firstOrNull()
-            ?: etUrl.text.toString().trim().takeIf { s.relayEnabled && it.isNotEmpty() }
-            ?: return
-        getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("WaveCast", link))
-        toast("Скопировано: $link")
+        val url = link(CaptureService.status) ?: return
+        getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("WaveCast", url))
+        toast("Ссылка скопирована")
     }
 
     private fun toast(t: String) = Toast.makeText(this, t, Toast.LENGTH_SHORT).show()
@@ -204,5 +223,13 @@ class MainActivity : Activity() {
         private const val REQ_PERMS = 1
         private const val REQ_PROJECTION = 2
         private val ACCENT = Color.parseColor("#4ADE80")
+        private val ROOM_RE = Regex("^[a-z0-9][a-z0-9_-]{0,47}$")
+        private const val ROOM_CHARS = "abcdefghjkmnpqrstuvwxyz23456789"
+        private const val KEY_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+        private fun random(chars: String, n: Int): String {
+            val r = SecureRandom()
+            return (1..n).map { chars[r.nextInt(chars.length)] }.joinToString("")
+        }
     }
 }

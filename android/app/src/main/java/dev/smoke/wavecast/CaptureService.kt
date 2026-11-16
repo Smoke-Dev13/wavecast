@@ -40,6 +40,10 @@ class CaptureService : Service() {
         val relayConnected: Boolean = false,
         val relayListeners: Int = 0,
         val relayError: String? = null,
+        val p2pUrl: String? = null,          // ссылка для слушателей
+        val p2pConnected: Boolean = false,   // есть связь с сигнальным сервисом
+        val p2pListeners: Int = 0,
+        val p2pError: String? = null,
         val error: String? = null,
     )
 
@@ -52,6 +56,9 @@ class CaptureService : Service() {
         const val EXTRA_PORT = "port"
         const val EXTRA_RELAY_URL = "relayUrl"
         const val EXTRA_RELAY_KEY = "relayKey"
+        const val EXTRA_SERVICE = "service"
+        const val EXTRA_ROOM = "room"
+        const val EXTRA_HOST_KEY = "hostKey"
 
         const val SAMPLE_RATE = 48_000
         const val CHANNELS = 2
@@ -76,6 +83,7 @@ class CaptureService : Service() {
     private val sinks = CopyOnWriteArrayList<Sink>()
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
+    private var p2p: P2PHost? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -106,14 +114,26 @@ class CaptureService : Service() {
 
         var st = Status(running = true)
 
+        // Локальный сервер нужен всегда: он раздаёт звук по Wi-Fi и кормит P2P-страницу
+        val want = intent.getIntExtra(EXTRA_PORT, 8080)
+        val srv = (want until want + 10).firstNotNullOfOrNull { p ->
+            runCatching { p to LocalServer(p, assets) { n -> publish(status.copy(localListeners = (n - p2pFeed()).coerceAtLeast(0))); updateNotification() } }.getOrNull()
+        }
+        if (srv == null) { fail("Порты $want–${want + 9} заняты"); return }
+        val port = srv.first
+        sinks += srv.second
         if (intent.getBooleanExtra(EXTRA_LOCAL, true)) {
-            val port = intent.getIntExtra(EXTRA_PORT, 8080)
-            try {
-                val srv = LocalServer(port, assets) { n -> publish(status.copy(localListeners = n)); updateNotification() }
-                sinks += srv
-                st = st.copy(localUrls = LocalServer.localAddresses().map { "http://$it:$port" })
-            } catch (e: Exception) {
-                fail("Порт $port занят: ${e.message}"); return
+            st = st.copy(localUrls = LocalServer.localAddresses().map { "http://$it:$port" })
+        }
+
+        val service = intent.getStringExtra(EXTRA_SERVICE).orEmpty()
+        if (service.isNotBlank()) {
+            val room = intent.getStringExtra(EXTRA_ROOM).orEmpty()
+            val base = P2PHost.normalize(service)
+            st = st.copy(p2pUrl = P2PHost.listenUrl(service, room))
+            p2p = P2PHost(this, port, base, room, intent.getStringExtra(EXTRA_HOST_KEY).orEmpty()) { ok, n, err ->
+                publish(status.copy(p2pConnected = ok, p2pListeners = n, p2pError = err))
+                updateNotification()
             }
         }
 
@@ -125,8 +145,6 @@ class CaptureService : Service() {
                 updateNotification()
             }
         }
-
-        if (sinks.isEmpty()) { fail("Включи хотя бы один режим"); return }
 
         val rec = try { buildRecorder(mp) } catch (e: Exception) { fail("AudioRecord: ${e.message}"); return }
         recorder = rec
@@ -159,6 +177,9 @@ class CaptureService : Service() {
         check(rec.state == AudioRecord.STATE_INITIALIZED) { "не инициализирован" }
         return rec
     }
+
+    /** P2P-страница сама подключена к локальному серверу — не считаем её слушателем. */
+    private fun p2pFeed() = if (p2p != null) 1 else 0
 
     private fun chunkBytes() = SAMPLE_RATE * CHUNK_MS / 1000 * CHANNELS * 2
 
@@ -195,6 +216,8 @@ class CaptureService : Service() {
         runCatching { recorder?.stop() }
         runCatching { recorder?.release() }
         recorder = null
+        p2p?.let { runCatching { it.close() } }
+        p2p = null
         sinks.forEach { runCatching { it.close() } }
         sinks.clear()
         runCatching { projection?.stop() }
@@ -222,6 +245,7 @@ class CaptureService : Service() {
     private fun summary(): String {
         val s = status
         val parts = mutableListOf<String>()
+        if (s.p2pUrl != null) parts += if (s.p2pConnected || s.p2pListeners > 0) "по ссылке: ${s.p2pListeners}" else "по ссылке: нет связи"
         if (s.localUrls.isNotEmpty()) parts += "Wi-Fi: ${s.localListeners}"
         if (s.relayEnabled) parts += if (s.relayConnected) "Relay: ${s.relayListeners}" else "Relay: нет связи"
         return "Слушателей — " + parts.joinToString(", ")

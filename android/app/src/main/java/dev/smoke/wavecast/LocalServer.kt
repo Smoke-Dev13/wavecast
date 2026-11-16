@@ -27,6 +27,7 @@ interface Sink {
 /**
  * Минимальный HTTP + WebSocket сервер без зависимостей.
  *   GET /        веб-плеер из assets
+ *   GET /cast.html  страница P2P-ведущего
  *   GET /status  JSON
  *   WS  /ws      поток PCM
  */
@@ -95,6 +96,10 @@ class LocalServer(
                 path == "/ws" && wsKey != null -> upgrade(sock, input, out, wsKey)
                 path == "/" || path == "/index.html" -> {
                     val body = assets.open("index.html").use { it.readBytes() }
+                    respond(out, "200 OK", "text/html; charset=utf-8", body); sock.close()
+                }
+                path == "/cast.html" -> {   // страница P2P-ведущего для скрытого WebView
+                    val body = assets.open("cast.html").use { it.readBytes() }
                     respond(out, "200 OK", "text/html; charset=utf-8", body); sock.close()
                 }
                 path == "/status" -> {

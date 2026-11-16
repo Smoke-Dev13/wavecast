@@ -11,8 +11,8 @@ android {
         applicationId = "dev.smoke.wavecast"
         minSdk = 29          // AudioPlaybackCapture появился в Android 10
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
     }
 
     signingConfigs {
@@ -39,9 +39,11 @@ android {
     kotlinOptions { jvmTarget = "17" }
 
     // Тот же веб-плеер, что и у relay-сервера
-    sourceSets["main"].assets.srcDirs("../../relay/wavecast/static")
+    // Веб-плеер для локального режима и страница P2P-ведущего
+    sourceSets["main"].assets.srcDirs("../../relay/wavecast/static", "../../p2p/host")
 }
 
 dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.zxing:core:3.5.3")
 }
