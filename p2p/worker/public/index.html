@@ -199,7 +199,7 @@
       case 'hello':
         ice = d.iceServers || []; live = d.live;
         if (!pc || pc.connectionState !== 'connected') {
-          setLive(false);
+          setLive(live);
           setState(!live ? 'Эфир ещё не начался. Страница сама подключится, когда ведущий выйдет.'
                    : waiting ? 'Ждём, пока ведущий пустит…' : asked ? 'Ведущий в сети, соединяюсь…' : 'Эфир идёт. Представься и жми «Слушать»');
         }

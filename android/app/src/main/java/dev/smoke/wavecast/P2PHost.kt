@@ -23,9 +23,9 @@ class P2PHost(
     key: String,
     token: String,
     auto: Boolean,
-    private val onState: (connected: Boolean, listeners: Int, error: String?) -> Unit,
-    private val onRequest: (id: String, name: String) -> Unit,
-    private val onRequestGone: (id: String) -> Unit,
+    private val stateCb: (connected: Boolean, listeners: Int, error: String?) -> Unit,
+    private val requestCb: (id: String, name: String) -> Unit,
+    private val requestGoneCb: (id: String) -> Unit,
 ) {
     private val main = Handler(Looper.getMainLooper())
     private val web = WebView(ctx.applicationContext)
@@ -45,14 +45,14 @@ class P2PHost(
         fun onState(json: String) {
             val o = runCatching { JSONObject(json) }.getOrNull() ?: return
             val err = if (o.isNull("error")) null else o.optString("error")
-            main.post { onState(o.optBoolean("signal"), o.optInt("listeners"), err) }
+            main.post { stateCb(o.optBoolean("signal"), o.optInt("listeners"), err) }
         }
 
         @JavascriptInterface
-        fun onRequest(id: String, name: String) { main.post { onRequest(id, name) } }
+        fun onRequest(id: String, name: String) { main.post { requestCb(id, name) } }
 
         @JavascriptInterface
-        fun onRequestGone(id: String) { main.post { onRequestGone(id) } }
+        fun onRequestGone(id: String) { main.post { requestGoneCb(id) } }
     }
 
     /** Ответ ведущего на запрос слушателя. */
@@ -78,6 +78,9 @@ class P2PHost(
         fun normalize(service: String): String {
             var u = service.trim()
             if (!u.contains("://")) u = "https://$u"
+            val host = Regex("^https?://([^/:?#]+)").find(u)?.groupValues?.get(1).orEmpty()
+            val local = host == "localhost" || Regex("^(127|10|192\\.168|172\\.(1[6-9]|2\\d|3[01]))\\.").containsMatchIn(host)
+            if (!local) u = u.replaceFirst(Regex("^http://"), "https://")
             return Regex("^(https?://[^/?#]+)").find(u)?.value ?: u
         }
     }

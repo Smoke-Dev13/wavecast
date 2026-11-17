@@ -150,12 +150,12 @@ class CaptureService : Service() {
             val base = P2PHost.normalize(service)
             st = st.copy(p2pUrl = P2PHost.listenUrl(service, room))
             p2p = P2PHost(this, port, base, room, intent.getStringExtra(EXTRA_HOST_KEY).orEmpty(), srv.second.internalToken, auto,
-                onState = { ok, n, err ->
+                stateCb = { ok, n, err ->
                     publish(status.copy(p2pConnected = ok, p2pListeners = n, p2pError = err))
                     updateNotification()
                 },
-                onRequest = { id, name -> addRequest(Request("p:$id", name)) },
-                onRequestGone = { id -> removeRequest("p:$id") })
+                requestCb = { id, name -> addRequest(Request("p:$id", name)) },
+                requestGoneCb = { id -> removeRequest("p:$id") })
         }
 
         val rec = try { buildRecorder(mp) } catch (e: Exception) { fail("AudioRecord: ${e.message}"); return }
