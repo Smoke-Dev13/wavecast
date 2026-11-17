@@ -25,6 +25,7 @@ import kotlin.concurrent.thread
 object Updater {
     const val LATEST_URL = "https://${Settings.DEFAULT_SERVICE}/app/latest.json"
     const val REPO_URL = "https://github.com/Smoke-Dev13/wavecast"
+    const val CHECK_EVERY_MS = 5 * 60_000L
 
     data class Release(val versionCode: Long, val versionName: String, val url: String,
                        val sha256: String, val size: Long, val notes: String)
@@ -37,13 +38,15 @@ object Updater {
     fun currentCode(ctx: Context): Long = ctx.packageManager.getPackageInfo(ctx.packageName, 0).longVersionCode
     fun currentName(ctx: Context): String = ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "?"
 
-    /** Проверяет обновление в фоне. force=false — не чаще раза в 30 минут. done(новая версия или null, ошибка). */
+    /** Проверяет обновление в фоне. force=false — не чаще раза в 5 минут. done(новая версия или null, ошибка). */
     fun check(ctx: Context, force: Boolean = false, done: (Release?, String?) -> Unit) {
-        if (!force && System.currentTimeMillis() - lastCheck < 30 * 60_000) { done(available, null); return }
+        if (!force && System.currentTimeMillis() - lastCheck < CHECK_EVERY_MS) { done(available, null); return }
+        lastCheck = System.currentTimeMillis()   // сразу, чтобы параллельные вызовы не дублировали запрос
         val app = ctx.applicationContext
         thread(name = "wc-update-check", isDaemon = true) {
             val r = runCatching {
-                val o = JSONObject(fetch(LATEST_URL).toString(Charsets.UTF_8))
+                // метка времени в адресе — мимо любых кэшей по пути
+                val o = JSONObject(fetch("$LATEST_URL?t=${System.currentTimeMillis()}").toString(Charsets.UTF_8))
                 Release(o.getLong("versionCode"), o.getString("versionName"),
                     URL(URL(LATEST_URL), o.getString("url")).toString(),
                     o.getString("sha256").lowercase(), o.optLong("size"), o.optString("notes"))
@@ -58,6 +61,7 @@ object Updater {
     private fun fetch(url: String, progress: ((Int) -> Unit)? = null, out: File? = null): ByteArray {
         val c = URL(url).openConnection() as HttpURLConnection
         c.connectTimeout = 10_000; c.readTimeout = 20_000
+        c.useCaches = false
         c.setRequestProperty("Cache-Control", "no-cache")
         try {
             if (c.responseCode != 200) error("HTTP ${c.responseCode}")

@@ -55,15 +55,24 @@ class MainActivity : Activity() {
         updBtn.setOnClickListener { update() }
     }
 
+    private val ticker = android.os.Handler(android.os.Looper.getMainLooper())
+    private val periodicCheck = object : Runnable {
+        override fun run() {
+            Updater.check(this@MainActivity) { rel, _ -> renderUpdate(rel) }
+            ticker.postDelayed(this, Updater.CHECK_EVERY_MS)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         CaptureService.listener = { render(it) }
         render(CaptureService.status)
-        Updater.check(this) { rel, _ -> renderUpdate(rel) }
+        periodicCheck.run()                        // при каждом возврате и потом раз в 5 минут, пока экран открыт
     }
 
     override fun onPause() {
         CaptureService.listener = null
+        ticker.removeCallbacks(periodicCheck)
         super.onPause()
     }
 

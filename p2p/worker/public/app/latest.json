@@ -1,8 +1,8 @@
 {
-  "versionCode": 14,
-  "versionName": "0.8.1",
-  "url": "wavecast.apk?v=14",
-  "sha256": "a1f67a2b6d219772e38421ee32d0cc811a33449b3573091f032d3cc3ac8c6988",
+  "versionCode": 15,
+  "versionName": "0.8.2",
+  "url": "wavecast.apk?v=15",
+  "sha256": "f5610582d8b3c7aa2b769b2b80b2b9ff1583b837e873317813af713ab521bf91",
   "size": 1131570,
-  "notes": "Кнопки «Поделиться» и «Копировать» больше не обрезаются"
+  "notes": "Новые версии находятся сразу, без перезапуска приложения"
 }
