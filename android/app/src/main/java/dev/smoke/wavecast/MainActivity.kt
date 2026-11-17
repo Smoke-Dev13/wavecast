@@ -51,6 +51,7 @@ class MainActivity : Activity() {
     private lateinit var lblRoom: TextView
     private lateinit var reqBox: LinearLayout
     private lateinit var swAuto: Switch
+    private lateinit var swMute: Switch
     private var shownRequests: List<CaptureService.Request>? = null
     private var qrFor: String? = null
 
@@ -61,6 +62,8 @@ class MainActivity : Activity() {
         etRoom.setText(prefs.getString("room", null) ?: random(ROOM_CHARS, 12))
         btn.setOnClickListener { if (CaptureService.status.running) stop() else askPermissions() }
         btnShare.setOnClickListener { share() }
+        swMute.isChecked = prefs.getBoolean("muteMessengers", true)
+        swMute.setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean("muteMessengers", on).apply() }
         swAuto.isChecked = prefs.getBoolean("autoAllow", false)
         swAuto.setOnCheckedChangeListener { _, on ->
             prefs.edit().putBoolean("autoAllow", on).apply()
@@ -128,6 +131,7 @@ class MainActivity : Activity() {
             .putExtra(CaptureService.EXTRA_ROOM, room())
             .putExtra(CaptureService.EXTRA_HOST_KEY, hostKey())
             .putExtra(CaptureService.EXTRA_AUTO, swAuto.isChecked)
+            .putExtra(CaptureService.EXTRA_MUTE_MESSENGERS, swMute.isChecked)
         startForegroundService(i)
     }
 
@@ -150,6 +154,7 @@ class MainActivity : Activity() {
         tvCount.text = "$total"
         tvCountLabel.visibility = tvCount.visibility
         tvCountLabel.text = if (total % 10 == 1 && total % 100 != 11) "слушает сейчас" else "слушают сейчас"
+        swMute.isEnabled = !on
         listOf(lblService, etService, lblRoom, etRoom).forEach { it.visibility = if (on) View.GONE else View.VISIBLE }
         val url = if (on) link(s) else null
         listOf(tvLink, qrCard, btnShare).forEach { it.visibility = if (url != null) View.VISIBLE else View.GONE }
@@ -259,6 +264,14 @@ class MainActivity : Activity() {
             setPadding(0, px(8), 0, px(8))
         }
         root.addView(swAuto, wide(top = 14))
+
+        swMute = Switch(this).apply {
+            text = "Не транслировать мессенджеры"; textSize = 15f; setTextColor(MILK); typeface = medium
+            thumbTintList = swAuto.thumbTintList; trackTintList = swAuto.trackTintList
+            setPadding(0, px(8), 0, px(8))
+        }
+        root.addView(swMute, wide(top = 2))
+        root.addView(text("Голосовые и звук Telegram, WhatsApp, Viber и других мессенджеров не попадут в эфир", 13f, DIM), wide())
 
         // QR на светлой карточке
         ivQr = ImageView(this)

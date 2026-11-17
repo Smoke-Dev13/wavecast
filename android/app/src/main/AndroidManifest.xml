@@ -10,6 +10,23 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
+    <!-- Android 11+: чтобы найти установленные мессенджеры и не пускать их звук в эфир -->
+    <queries>
+        <package android:name="org.telegram.messenger" />
+        <package android:name="org.telegram.messenger.web" />
+        <package android:name="org.telegram.plus" />
+        <package android:name="org.thunderdog.challegram" />
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+        <package android:name="com.viber.voip" />
+        <package android:name="org.thoughtcrime.securesms" />
+        <package android:name="com.vk.im" />
+        <package android:name="ru.oneme.app" />
+        <package android:name="jp.naver.line.android" />
+        <package android:name="com.facebook.orca" />
+        <package android:name="com.snapchat.android" />
+    </queries>
+
     <application
         android:label="WaveCast"
         android:icon="@drawable/ic_wave"
