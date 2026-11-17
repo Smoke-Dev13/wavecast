@@ -2,7 +2,9 @@
 // Звук через него НЕ идёт: он только знакомит ведущего со слушателями (WebRTC offer/answer/ICE)
 // и отдаёт страницу слушателя.
 //
+//   GET /                                 главная: что это, «слушать по названию», скачать приложение
 //   GET /r/<комната>                      страница слушателя
+//   GET /app/latest.json, /app/wavecast.apk  обновления приложения
 //   WS  /signal/<комната>?role=listener   слушатель; просится в эфир сообщением {type:"join", name, cid}
 //   WS  /signal/<комната>?role=host&key=  ведущий (ключ закрепляется за комнатой при первом входе)
 import { DurableObject } from "cloudflare:workers";
@@ -15,10 +17,13 @@ const KEY_TTL_MS = 30 * 86400e3;    // комната без эфиров осв
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
-    let m = url.pathname.match(new RegExp(`^/signal/(${ROOM})$`));
-    if (m) return env.ROOMS.get(env.ROOMS.idFromName(m[1])).fetch(req);
-    if (new RegExp(`^/r/${ROOM}/?$`).test(url.pathname)) return env.ASSETS.fetch(new URL("/", url));
-    return new Response("not found", { status: 404 });
+    // названия эфиров нечувствительны к регистру: /r/SmokeDev = /r/smokedev
+    let m = url.pathname.match(new RegExp(`^/signal/(${ROOM})$`, "i"));
+    if (m) return env.ROOMS.get(env.ROOMS.idFromName(m[1].toLowerCase())).fetch(req);
+    if (new RegExp(`^/r/${ROOM}/?$`, "i").test(url.pathname)) return env.ASSETS.fetch(new Request(new URL("/listen", url), req));
+    // всё остальное, чего нет среди файлов сайта, — оформленная страница «не найдено»
+    const page = await env.ASSETS.fetch(new Request(new URL("/404", url), req));
+    return new Response(page.body, { status: 404, headers: page.headers });
   },
 };
 

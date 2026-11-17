@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#191627">
+<title>WaveCast</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Crect width=%2224%22 height=%2224%22 rx=%226%22 fill=%22%23191627%22/%3E%3Cpath fill=%22%23BFB0F5%22 d=%22M5 10h2.4v4H5zM9 7h2.4v10H9zM13 4h2.4v16H13zM17 9h2.4v6H17z%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;800&family=Onest:wght@400;600;700&display=swap">
+<style>
+  :root { --uv: #191627; --ink: #0F0D1A; --lemon: #BFB0F5; --gum: #F0A08C; --milk: #EFEAE2; --mint: #2A2640; --dim: #9C96B0;
+          --display: "Unbounded", "Arial Black", "Segoe UI Black", system-ui, sans-serif;
+          --body: "Onest", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  * { box-sizing: border-box; }
+  html { background: var(--uv); }
+  body { margin: 0; min-height: 100vh; min-height: 100dvh; color: var(--milk); font: 400 16px/1.45 var(--body);
+         background: radial-gradient(120% 70% at 50% 45%, #2B2547 0%, var(--uv) 70%);
+         display: flex; justify-content: center; }
+  main { width: min(100%, 440px); padding: 20px 22px 28px; display: flex; flex-direction: column; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .brand { font: 800 15px/1 var(--display); color: var(--milk); letter-spacing: -.01em; }
+  .pill { font: 700 13px/1 var(--body); padding: 8px 12px; border-radius: 99px;
+          background: var(--mint); color: var(--dim); display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
+  .pill.live { color: var(--milk); }
+  .pill.live i { background: var(--gum); animation: blink 2s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+  h1 { margin: 26px 0 6px; font: 800 clamp(38px, 14vw, 72px)/1 var(--display); letter-spacing: -.04em;
+       color: var(--milk); white-space: nowrap; overflow-wrap: normal; hyphens: none; max-width: 100%; }
+  h1.wrap { white-space: normal; }
+  h1.squeeze { white-space: normal; overflow-wrap: anywhere; }
+  #state { margin: 0; min-height: 24px; color: var(--dim); }
+  #state.err { color: var(--gum); }
+  .stage { position: relative; width: min(100%, 330px); aspect-ratio: 1; margin: 14px auto 6px; display: grid; place-items: center; }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #btn { position: relative; width: 56%; aspect-ratio: 1; border-radius: 50%; border: 0; cursor: pointer;
+         background: var(--lemon); color: var(--ink); box-shadow: 0 14px 40px #0008; display: grid; place-items: center;
+         transition: transform .08s, box-shadow .08s, background .15s; -webkit-tap-highlight-color: transparent; }
+  #btn:active { transform: scale(.96); }
+  #btn:focus-visible, .sticker:focus-visible, input:focus-visible { outline: 2px solid var(--milk); outline-offset: 4px; }
+  .who input:focus-visible { outline-offset: 2px; }
+  #btn svg { width: 42%; height: 42%; }
+  #btn .stop { display: none; }
+  #btn.on { background: var(--milk); }
+  #btn.on .play { display: none; } #btn.on .stop { display: block; }
+  #btn:disabled { background: var(--mint); color: var(--dim); cursor: default; box-shadow: none; }
+  #hint { text-align: center; margin: 0 0 20px; font: 600 15px/1.2 var(--body); color: var(--dim); }
+  .now { display: none; align-items: center; gap: 12px; margin: 0 0 18px; padding: 12px 14px; background: var(--mint); color: var(--milk);
+         border-radius: 18px; }
+  .now img { width: 52px; height: 52px; border-radius: 10px; object-fit: cover; flex: none; }
+  .now a { color: inherit; text-decoration: none; min-width: 0; }
+  .now > div, .now a { min-width: 0; flex: 1; }
+  .now .t, .now .a { overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; word-break: normal; }
+  .now .t { font: 800 16px/1.25 var(--display); letter-spacing: -.02em;
+            display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+  .now .a { white-space: nowrap; } .now .a { color: var(--dim); }
+  .dj { display: none; margin: 0 0 18px; padding: 12px 14px; background: var(--mint); color: var(--milk);
+        border-radius: 18px 18px 18px 4px; }
+  .who { display: flex; flex-direction: column; gap: 6px; margin: 0 0 18px; }
+  .who label { font-size: 14px; color: var(--dim); }
+  .who input { font: 600 17px/1.2 var(--body); color: var(--milk); background: var(--mint); border: 0; border-radius: 14px;
+         padding: 14px 16px; width: 100%; }
+  .who input::placeholder { color: var(--dim); font-weight: 400; }
+  .vol { display: flex; align-items: center; gap: 12px; }
+  .vol svg { width: 22px; height: 22px; flex: none; color: var(--dim); }
+  input[type=range] { -webkit-appearance: none; appearance: none; flex: 1; height: 6px; border-radius: 99px; margin: 0;
+         background: var(--mint); border: 0; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%;
+         background: var(--milk); border: 0; cursor: pointer; }
+  input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--milk); border: 0; cursor: pointer; }
+  .tune { display: flex; align-items: center; gap: 12px; margin-top: 14px; font-size: 14px; color: var(--dim); }
+  .tune output { width: 62px; text-align: right; }
+  .foot { margin-top: 22px; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .sticker { white-space: nowrap; flex: none; font: 700 15px/1 var(--body); padding: 14px 20px; border-radius: 99px; cursor: pointer;
+         background: var(--mint); color: var(--milk); border: 0;
+         transition: transform .08s; }
+  .sticker:active { transform: scale(.96); }
+  .meta { font-size: 13px; text-align: right; color: var(--dim); line-height: 1.5; }
+  @media (prefers-reduced-motion: reduce) { .pill.live i { animation: none; } #btn, .sticker { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="brand">WaveCast</span>
+    <span class="pill" id="pill"><i></i><span id="cnt">не в эфире</span></span>
+  </header>
+  <h1 id="room">эфир</h1>
+  <p id="state">подключаюсь…</p>
+  <div class="stage">
+    <canvas id="viz"></canvas>
+    <button id="btn" aria-label="Слушать">
+      <svg class="play" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 3.5v17a1 1 0 0 0 1.5.86l14-8.5a1 1 0 0 0 0-1.72l-14-8.5A1 1 0 0 0 7 3.5z"/></svg>
+      <svg class="stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor"/></svg>
+    </button>
+  </div>
+  <p id="hint">Жми и слушай</p>
+  <div class="who" id="who">
+    <label for="name">Как тебя зовут? Ведущий увидит имя в запросе</label>
+    <input id="name" maxlength="24" autocomplete="nickname" placeholder="Например, Аня">
+  </div>
+  <div class="now" id="now"><div><div class="t" id="title"></div><div class="a" id="artist"></div></div></div>
+  <label class="vol">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 4V5L7 9H3zm12.5 3a4 4 0 0 0-2-3.46v6.92a4 4 0 0 0 2-3.46z"/></svg>
+    <input id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Громкость">
+  </label>
+  <div class="foot">
+    <button class="sticker" id="share">Позвать друзей</button>
+    <div class="meta" id="link"></div>
+  </div>
+  <audio id="audio" playsinline></audio>
+</main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const m = location.pathname.match(/^\/r\/([^/]+)/);
+  const room = m ? decodeURIComponent(m[1]).toLowerCase() : '';
+  const audio = $('audio');
+  let ws, pc, ice = [], live = false, wanted = false, retry = 500, rejoin, fatal = false, analyser, bins;
+  let asked = false, waiting = false;
+  const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch {} return null; };
+  // id устройства: чтобы после обрыва связи ведущему не приходил повторный запрос
+  let cid = store('wc-cid');
+  if (!cid) { cid = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(36).padStart(2, '0')).join('').slice(0, 20); store('wc-cid', cid); }
+  $('name').value = store('wc-name') || '';
+  const myName = () => $('name').value.trim().slice(0, 24) || 'Гость';
+  const join = () => send({ type: 'join', name: myName(), cid });
+
+  // Живое кольцо вокруг кнопки: спектр звука в полярных координатах
+  function ring(cv, getData) {
+    const g = cv.getContext('2d'), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const css = getComputedStyle(document.documentElement), col = n => css.getPropertyValue(n).trim();
+    const N = 64, lvl = new Float32Array(N);
+    function frame() {
+      const dpr = Math.min(devicePixelRatio || 1, 2), w = cv.clientWidth * dpr;
+      if (cv.width !== w) cv.width = cv.height = w;
+      const data = getData(), c = w / 2, base = w * 0.31, amp = w * 0.11;
+      g.clearRect(0, 0, w, w);
+      // три мягких полупрозрачных слоя: дальний реагирует сильнее всего
+      for (const [alpha, k, grow] of [[.10, 1.6, .05], [.16, 1, .02], [.26, .5, 0]]) {
+        g.beginPath();
+        for (let i = 0; i <= N; i++) {
+          const j = i % N, m = j < N / 2 ? j : N - j;               // зеркалим, чтобы кольцо смыкалось
+          const v = data ? data[2 + Math.floor(m * data.length / N * 0.9)] / 255 : 0;
+          if (i < N && k === 1.6) lvl[j] += (v - lvl[j]) * 0.3;
+          const soft = (lvl[(j + N - 1) % N] + 2 * lvl[j] + lvl[(j + 1) % N]) / 4;   // сглаживаем соседние лучи
+          const r = base + w * grow + (still ? 0 : soft) * amp * k, a = j / N * Math.PI * 2 - Math.PI / 2;
+          g[i ? 'lineTo' : 'moveTo'](c + r * Math.cos(a), c + r * Math.sin(a));
+        }
+        g.closePath(); g.globalAlpha = alpha; g.fillStyle = col('--lemon'); g.fill();
+      }
+      g.globalAlpha = 1;
+      if (!still || !frame.done) requestAnimationFrame(frame);
+      frame.done = true;
+    }
+    frame();
+  }
+  ring($('viz'), () => { if (!analyser || audio.paused) return null; analyser.getByteFrequencyData(bins); return bins; });
+
+  const setState = (txt, err) => { $('state').textContent = txt; $('state').className = err ? 'err' : ''; };
+  const setLive = (on, n) => {
+    $('pill').className = 'pill' + (on ? ' live' : '');
+    if (!on) $('cnt').textContent = 'не в эфире';
+    else if (n != null) $('cnt').textContent = n + ' ' + (n % 10 === 1 && n % 100 !== 11 ? 'слушает' : 'слушают');
+    else if ($('cnt').textContent === 'не в эфире') $('cnt').textContent = 'в эфире';
+  };
+  const send = o => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); };
+
+  if (!room) { setState('Открой ссылку на эфир, которую прислал ведущий'); $('btn').disabled = true; $('hint').textContent = ''; return; }
+  $('room').textContent = room;
+
+  // Название эфира никогда не рвём посреди слова:
+  //  1) одна строка, уменьшаем шрифт до 26px;
+  //  2) не влезло — переносим только по дефису/пробелу и уменьшаем до 18px;
+  //  3) и это не помогло (48 символов без дефисов) — только тогда перенос где угодно.
+  // Пересчитываем при подгрузке шрифта и при любом изменении ширины.
+  function fitTitle() {
+    const h = $('room'), box = h.parentElement.clientWidth;
+    if (!box) return;                                   // страница скрыта — посчитаем, когда покажут
+    const fits = () => h.scrollWidth <= box + 1;
+    h.className = ''; h.style.fontSize = '';
+    let size = parseFloat(getComputedStyle(h).fontSize);
+    while (!fits() && size > 26) { size -= 1; h.style.fontSize = size + 'px'; }
+    if (fits()) return;
+    h.className = 'wrap';
+    while (!fits() && size > 18) { size -= 1; h.style.fontSize = size + 'px'; }
+    if (!fits()) h.className = 'squeeze';
+  }
+  if ('ResizeObserver' in window) new ResizeObserver(() => fitTitle()).observe(document.querySelector('main'));
+  else addEventListener('resize', fitTitle);
+  if (document.fonts) { document.fonts.addEventListener('loadingdone', fitTitle); document.fonts.ready.then(fitTitle); }
+  fitTitle();
+  document.title = room + ' — WaveCast';
+
+  // Opus по умолчанию моно и ~32 кбит/с: просим у ведущего стерео и музыкальный битрейт
+  const musicSdp = sdp => sdp.replace(/a=fmtp:(\d+) (.*useinbandfec=1[^\r\n]*)/g,
+    (s, pt, rest) => /stereo=1/.test(rest) ? s : `a=fmtp:${pt} ${rest};stereo=1;sprop-stereo=1;maxaveragebitrate=160000`);
+
+  function connect() {
+    ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/signal/' + encodeURIComponent(room) + '?role=listener');
+    ws.onopen = () => { retry = 500; if (asked) join(); };
+    ws.onclose = () => {
+      if (fatal) return;
+      if (!pc || pc.connectionState !== 'connected') setState('Нет связи с сервисом, переподключаюсь…');
+      setTimeout(connect, retry); retry = Math.min(retry * 2, 8000);
+    };
+    ws.onmessage = ev => onSignal(JSON.parse(ev.data)).catch(e => console.warn('signal', e));
+  }
+
+  async function onSignal(d) {
+    switch (d.type) {
+      case 'hello':
+        ice = d.iceServers || []; live = d.live;
+        if (!pc || pc.connectionState !== 'connected') {
+          setLive(live);
+          setState(!live ? 'Эфир ещё не начался. Страница сама подключится, когда ведущий выйдет.'
+                   : waiting ? 'Ждём, пока ведущий пустит…' : asked ? 'Ведущий в сети, соединяюсь…' : 'Эфир идёт. Представься и жми «Слушать»');
+        }
+        break;
+      case 'offer': {
+        waiting = false; $('who').style.display = 'none';
+        drop();
+        const p = pc = new RTCPeerConnection({ iceServers: ice });
+        p.onicecandidate = e => { if (e.candidate) send({ type: 'ice', candidate: e.candidate }); };
+        p.ontrack = e => { audio.srcObject = e.streams[0] || new MediaStream([e.track]); if (wanted) play(); };
+        p.onconnectionstatechange = () => { if (p === pc) onLink(p.connectionState); };
+        await p.setRemoteDescription(d);
+        const ans = await p.createAnswer();
+        ans.sdp = musicSdp(ans.sdp);
+        await p.setLocalDescription(ans);
+        send({ type: 'answer', sdp: ans.sdp });
+        break;
+      }
+      case 'ice':
+        if (pc && d.candidate) await pc.addIceCandidate(d.candidate).catch(() => {});
+        break;
+      case 'status':
+        live = d.live !== false;
+        if (!live) { drop(); waiting = false; $('now').style.display = 'none'; setLive(false); setState('Эфир закончился. Останься на странице — подключу, когда ведущий вернётся.'); }
+        else if (pc && pc.connectionState === 'connected') setLive(true, d.listeners);
+        if (d.title) {
+          $('title').textContent = $('title').title = d.title; $('artist').textContent = $('artist').title = d.artist || ''; $('now').style.display = 'flex';
+          if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: d.title, artist: d.artist || 'WaveCast' });
+        }
+        ui();
+        break;
+      case 'waiting':
+        waiting = true; setState('Ждём, пока ведущий пустит…'); ui();
+        break;
+      case 'denied':
+        asked = false; waiting = false; wanted = false; drop();
+        setState('Ведущий не пустил в эфир', true); $('who').style.display = ''; ui();
+        break;
+      case 'busy':
+        asked = false; waiting = false; wanted = false;
+        setState('У ведущего сейчас много запросов. Попробуй через минуту.', true); ui();
+        break;
+      case 'full':
+        setState('Мест нет: у ведущего максимум слушателей. Попробуй позже.', true);
+        break;
+      case 'error':
+        fatal = true; setState(d.message || 'Ошибка сервиса', true);
+        break;
+    }
+  }
+
+  function onLink(st) {
+    clearTimeout(rejoin);
+    if (st === 'connected') { setLive(true); setState(wanted ? 'Ты в эфире' : 'Эфир идёт'); report(); }
+    else if (st === 'disconnected') { setState('Связь прервалась, жду…'); rejoin = setTimeout(join, 4000); }
+    else if (st === 'failed') { $('link').textContent = ''; setState('Напрямую соединиться не вышло, пробую ещё…', true); rejoin = setTimeout(join, 1500); }
+  }
+
+  // показываем, идёт ли звук напрямую или через TURN-ретранслятор
+  async function report() {
+    try {
+      const st = await pc.getStats(); let pair;
+      st.forEach(r => { if (r.type === 'transport' && r.selectedCandidatePairId) pair = st.get(r.selectedCandidatePairId); });
+      const loc = pair && st.get(pair.localCandidateId);
+      $('link').textContent = loc && loc.candidateType === 'relay' ? 'звук идёт через TURN' : 'звук идёт напрямую';
+    } catch {}
+  }
+
+  function drop() { clearTimeout(rejoin); if (pc) { pc.onconnectionstatechange = null; pc.close(); pc = null; } $('link').textContent = ''; }
+
+  function ui() {
+    $('btn').className = wanted ? 'on' : '';
+    $('btn').setAttribute('aria-label', wanted ? 'Остановить' : 'Слушать');
+    $('hint').textContent = !wanted ? (asked ? 'Жми и слушай' : 'Жми, чтобы попроситься в эфир')
+      : waiting ? 'Запрос отправлен' : audio.srcObject && live ? 'Звук идёт' : 'Жду эфир — заиграет само';
+    if (live && pc && pc.connectionState === 'connected') setState(wanted ? 'Ты в эфире' : 'Эфир идёт');
+  }
+
+  async function play() {
+    try { await audio.play(); tap(); }
+    catch { wanted = false; $('hint').textContent = 'Нажми ещё раз'; }
+    ui();
+  }
+
+  function tap() {   // анализатор для кольца; звук играет сам <audio>
+    if (!audio.srcObject) return;
+    try {
+      tap.ctx = tap.ctx || new (window.AudioContext || window.webkitAudioContext)();
+      tap.ctx.resume();
+      if (tap.stream === audio.srcObject) return;
+      if (tap.src) tap.src.disconnect();
+      analyser = tap.ctx.createAnalyser(); analyser.fftSize = 256; analyser.smoothingTimeConstant = .6;
+      bins = new Uint8Array(analyser.frequencyBinCount);
+      tap.src = tap.ctx.createMediaStreamSource(tap.stream = audio.srcObject); tap.src.connect(analyser);
+    } catch {}
+  }
+
+  $('btn').onclick = () => {
+    wanted = !wanted;
+    if (wanted && !asked) { asked = true; store('wc-name', $('name').value.trim()); join(); }
+    if (wanted && audio.srcObject) return play();
+    if (!wanted) audio.pause();
+    ui();
+  };
+  $('vol').oninput = e => { audio.volume = +e.target.value; };
+  $('share').onclick = async () => {
+    const url = location.href;
+    try { if (navigator.share) return await navigator.share({ title: 'WaveCast', text: 'Залетай в мой эфир', url }); } catch { return; }
+    try { await navigator.clipboard.writeText(url); $('share').textContent = 'Ссылка скопирована'; setTimeout(() => $('share').textContent = 'Позвать друзей', 2000); } catch { prompt('Ссылка:', url); }
+  };
+
+  $('name').onkeydown = e => { if (e.key === 'Enter') $('btn').click(); };
+  ui();
+  connect();
+})();
+</script>
+</body>
+</html>
