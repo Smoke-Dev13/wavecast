@@ -51,7 +51,8 @@ class LocalServer(
         }
     }
 
-    val count: Int get() = clients.size
+    /** Слушатели без служебного подключения P2P-страницы (оно приходит с 127.0.0.1). */
+    val count: Int get() = clients.count { !it.internal }
 
     override fun format(json: String) {
         formatMsg = json
@@ -69,12 +70,12 @@ class LocalServer(
         clients.clear()
     }
 
-    private fun statusJson() = """{"type":"status","live":true,"listeners":${clients.size}}"""
+    private fun statusJson() = """{"type":"status","live":true,"listeners":$count}"""
 
     private fun broadcastStatus() {
         val s = statusJson()
         clients.forEach { it.text(s) }
-        onListeners(clients.size)
+        onListeners(count)
     }
 
     private fun handle(sock: Socket) {
@@ -127,7 +128,7 @@ class LocalServer(
         out.write(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n" +
                 "Sec-WebSocket-Accept: $accept\r\n\r\n").toByteArray())
         out.flush()
-        val c = Client(sock, out)
+        val c = Client(sock, out, sock.inetAddress.isLoopbackAddress)
         clients.add(c)
         c.text(statusJson())
         formatMsg?.let { c.text(it) }
@@ -158,7 +159,7 @@ class LocalServer(
         }
     }
 
-    private class Client(private val sock: Socket, private val out: OutputStream) {
+    private class Client(private val sock: Socket, private val out: OutputStream, val internal: Boolean) {
         private val q = LinkedBlockingQueue<Pair<Int, ByteArray>>()
         @Volatile private var alive = true
         private val writer = thread(name = "wc-write", isDaemon = true) {

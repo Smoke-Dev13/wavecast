@@ -9,6 +9,12 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.LayerDrawable
+import android.annotation.SuppressLint
+import android.view.MotionEvent
+import android.widget.FrameLayout
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
@@ -37,6 +43,12 @@ class MainActivity : Activity() {
     private lateinit var tvStatus: TextView
     private lateinit var tvLink: TextView
     private lateinit var ivQr: ImageView
+    private lateinit var qrCard: FrameLayout
+    private lateinit var tvLive: TextView
+    private lateinit var tvCount: TextView
+    private lateinit var tvCountLabel: TextView
+    private lateinit var lblService: TextView
+    private lateinit var lblRoom: TextView
     private var qrFor: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -117,97 +129,153 @@ class MainActivity : Activity() {
 
     private fun render(s: CaptureService.Status) {
         val on = s.running
-        btn.text = if (on) "■  Остановить эфир" else "▶  В эфир"
-        btn.setBackgroundColor(if (on) Color.parseColor("#2A3440") else ACCENT)
-        btn.setTextColor(if (on) Color.WHITE else Color.parseColor("#06210F"))
-        etService.isEnabled = !on
-        etRoom.isEnabled = !on
-
+        btn.text = if (on) "Закончить эфир" else "В эфир"
+        btn.background = sticker(if (on) GUM else LEMON, 99, 6)
+        tvLive.text = if (on) "в эфире" else "не в эфире"
+        tvLive.background = sticker(if (on) GUM else MILK, 99, 0, 2)
+        val total = s.p2pListeners + s.localListeners
+        tvCount.visibility = if (on) View.VISIBLE else View.GONE
+        tvCount.text = "$total"
+        tvCountLabel.visibility = tvCount.visibility
+        tvCountLabel.text = if (total % 10 == 1 && total % 100 != 11) "слушает сейчас" else "слушают сейчас"
+        listOf(lblService, etService, lblRoom, etRoom).forEach { it.visibility = if (on) View.GONE else View.VISIBLE }
         val url = if (on) link(s) else null
-        listOf(tvLink, ivQr, btnShare).forEach { it.visibility = if (url != null) View.VISIBLE else View.GONE }
+        listOf(tvLink, qrCard, btnShare).forEach { it.visibility = if (url != null) View.VISIBLE else View.GONE }
         if (url != null) {
             tvLink.text = url
             if (qrFor != url) { ivQr.setImageBitmap(qr(url)); qrFor = url }
         }
 
         val sb = StringBuilder()
-        if (s.error != null) sb.append("⚠ ${s.error}\n\n")
+        if (s.error != null) sb.append("Не получилось: ${s.error}\n\n")
         if (!on) {
-            sb.append("Нажми «В эфир», потом включай музыку в любом приложении — друзья услышат то же, что и ты.\n\n")
-            sb.append(if (etService.text.isBlank()) "Без адреса сервиса эфир доступен только в твоей Wi-Fi сети / точке доступа."
-                      else "Друзья подключаются по ссылке или QR-коду, из любой сети.")
+            sb.append("Нажми «В эфир» и включай музыку где угодно. Друзья услышат то же, что и ты.\n\n")
+            sb.append(if (etService.text.isBlank()) "Без адреса сервиса эфир ловится только в твоей Wi-Fi сети или на твоей точке доступа."
+                      else "Друзья заходят по ссылке или QR-коду из любой сети.")
         } else {
-            sb.append("● В ЭФИРЕ\n\n")
-            if (s.p2pUrl != null) {
-                sb.append("По ссылке: слушателей ${s.p2pListeners}")
-                if (!s.p2pConnected) sb.append("\n⚠ ${s.p2pError ?: "подключаюсь к сервису…"}")
-                sb.append("\n\n")
-            }
+            if (s.p2pUrl != null && !s.p2pConnected) sb.append("Нет связи с сервисом: ${s.p2pError ?: "подключаюсь…"}\n\n")
             if (s.localUrls.isNotEmpty()) {
-                sb.append("В твоей Wi-Fi сети, без интернета (слушателей ${s.localListeners}):\n")
-                s.localUrls.forEach { sb.append("   $it\n") }
+                sb.append(if (s.p2pUrl != null) "Рядом и без интернета, в твоей Wi-Fi сети:\n" else "Ссылка работает в твоей Wi-Fi сети или на твоей точке доступа.\n")
+                if (s.p2pUrl != null) s.localUrls.forEach { sb.append("$it\n") }
             } else if (s.p2pUrl == null) sb.append("Нет Wi-Fi сети: подключись к Wi-Fi или включи точку доступа.\n")
         }
         tvStatus.text = sb.toString()
     }
 
+    private fun px(v: Int) = (v * resources.displayMetrics.density).toInt()
+
+    /** «Наклейка»: заливка с чернильной обводкой и жёсткой тенью со сдвигом. */
+    private fun sticker(fill: Int, radius: Int, shadow: Int = 5, stroke: Int = 3): Drawable {
+        fun shape(color: Int, line: Boolean) = GradientDrawable().apply {
+            setColor(color); cornerRadius = px(radius).toFloat()
+            if (line) setStroke(px(stroke), INK)
+        }
+        if (shadow == 0) return shape(fill, true)
+        return LayerDrawable(arrayOf(shape(INK, false), shape(fill, true))).apply {
+            setLayerInset(0, px(shadow), px(shadow), 0, 0)
+            setLayerInset(1, 0, 0, px(shadow), px(shadow))
+        }
+    }
+
+    /** Кнопка «проваливается» в тень при нажатии. */
+    @SuppressLint("ClickableViewAccessibility")
+    private fun pressable(v: View, shadow: Int) = v.setOnTouchListener { _, e ->
+        val d = when (e.actionMasked) { MotionEvent.ACTION_DOWN -> px(shadow) * 0.6f; MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> 0f; else -> return@setOnTouchListener false }
+        v.animate().translationX(d).translationY(d).setDuration(60).start()
+        false
+    }
+
     private fun buildUi(): View {
-        val dp = resources.displayMetrics.density
-        fun px(v: Int) = (v * dp).toInt()
+        window.statusBarColor = UV
+        window.navigationBarColor = UV
+        val display = Typeface.create("sans-serif-black", Typeface.NORMAL)
+        val medium = Typeface.create("sans-serif-medium", Typeface.NORMAL)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(px(20), px(28), px(20), px(20))
+            setPadding(px(22), px(20), px(22), px(28))
         }
-        fun label(t: String, size: Float = 14f, bold: Boolean = false, color: String = "#E6EDF3") = TextView(this).apply {
-            text = t; textSize = size; setTextColor(Color.parseColor(color))
-            if (bold) typeface = Typeface.DEFAULT_BOLD
-            setPadding(0, px(6), 0, px(6))
+        fun text(t: String, size: Float, color: Int = MILK, face: Typeface = medium) = TextView(this).apply {
+            text = t; textSize = size; setTextColor(color); typeface = face; includeFontPadding = false
         }
-        fun field(hint: String, type: Int) = EditText(this).apply {
-            this.hint = hint; inputType = type; setSingleLine()
-            setTextColor(Color.WHITE); setHintTextColor(Color.parseColor("#5B6875"))
+        fun field(hint: String) = EditText(this).apply {
+            this.hint = hint; setSingleLine(); textSize = 16f; typeface = medium
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            setTextColor(INK); setHintTextColor(Color.parseColor("#8A84A0"))
+            background = sticker(MILK, 16, 0)
+            setPadding(px(16), px(14), px(16), px(14))
         }
-        fun wide(top: Int = 0, bottom: Int = 0) = LinearLayout.LayoutParams(
+        fun button(fill: Int, size: Float, shadow: Int) = Button(this).apply {
+            isAllCaps = false; textSize = size; typeface = display; setTextColor(INK); letterSpacing = -0.02f
+            stateListAnimator = null; background = sticker(fill, 99, shadow)
+            setPadding(px(20), px(16), px(20 + shadow), px(16 + shadow))
+            pressable(this, shadow)
+        }
+        fun wide(top: Int = 0) = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = px(top); bottomMargin = px(bottom) }
+        ).apply { topMargin = px(top) }
+        fun wrap(top: Int = 0, center: Boolean = false) = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = px(top); if (center) gravity = Gravity.CENTER_HORIZONTAL }
 
-        root.addView(label("WaveCast", 26f, true))
-        root.addView(label("Твоё радио: друзья слышат то, что играет у тебя", color = "#8B98A5"))
+        // шапка: марка слева, статус эфира справа
+        val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        head.addView(text("WaveCast", 15f, LEMON, display), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        tvLive = text("не в эфире", 13f, INK, Typeface.DEFAULT_BOLD).apply { setPadding(px(12), px(7), px(12), px(7)) }
+        head.addView(tvLive)
+        root.addView(head, wide())
 
-        root.addView(label("Адрес сервиса", 12f, color = "#8B98A5"))
-        etService = field("wavecast.твой-аккаунт.workers.dev", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI)
-        root.addView(etService)
-        root.addView(label("Название эфира", 12f, color = "#8B98A5"))
-        etRoom = field("party", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI)
-        root.addView(etRoom)
+        root.addView(text("Твоё радио", 44f, MILK, display).apply {
+            letterSpacing = -0.04f
+            setShadowLayer(0.01f, px(3).toFloat(), px(3).toFloat(), INK)
+        }, wide(top = 26))
 
-        btn = Button(this).apply { textSize = 18f; isAllCaps = false; setPadding(0, px(14), 0, px(14)) }
-        root.addView(btn, wide(top = 18, bottom = 14))
+        tvCount = text("0", 72f, LEMON, display).apply { setShadowLayer(0.01f, px(4).toFloat(), px(4).toFloat(), INK); visibility = View.GONE }
+        root.addView(tvCount, wide(top = 14))
+        tvCountLabel = text("слушают сейчас", 16f).apply { visibility = View.GONE }
+        root.addView(tvCountLabel, wide())
 
-        ivQr = ImageView(this).apply { visibility = View.GONE }
-        root.addView(ivQr, LinearLayout.LayoutParams(px(220), px(220)).apply { gravity = Gravity.CENTER_HORIZONTAL })
-        tvLink = label("", 15f, true, "#4ADE80").apply { gravity = Gravity.CENTER; visibility = View.GONE }
-        root.addView(tvLink, wide(top = 8))
-        btnShare = Button(this).apply { text = "Поделиться ссылкой"; isAllCaps = false; visibility = View.GONE }
-        root.addView(btnShare, wide(bottom = 10))
+        lblService = text("Адрес сервиса", 13f)
+        root.addView(lblService, wide(top = 22))
+        etService = field("wavecast.твой-аккаунт.workers.dev")
+        root.addView(etService, wide(top = 6))
+        lblRoom = text("Название эфира", 13f)
+        root.addView(lblRoom, wide(top = 14))
+        etRoom = field("party")
+        root.addView(etRoom, wide(top = 6))
 
-        tvStatus = label("")
-        root.addView(tvStatus)
+        btn = button(LEMON, 22f, 6)
+        root.addView(btn, wide(top = 24))
 
-        return ScrollView(this).apply { setBackgroundColor(Color.parseColor("#0B0F14")); addView(root) }
+        // QR-наклейка, слегка повёрнутая
+        ivQr = ImageView(this)
+        qrCard = FrameLayout(this).apply {
+            background = sticker(MILK, 22, 6); rotation = -2f; visibility = View.GONE
+            setPadding(px(14), px(14), px(20), px(20))
+            addView(ivQr, FrameLayout.LayoutParams(px(200), px(200)))
+        }
+        root.addView(qrCard, wrap(top = 26, center = true))
+        tvLink = text("", 15f, LEMON, Typeface.DEFAULT_BOLD).apply { gravity = Gravity.CENTER; visibility = View.GONE; setPadding(0, px(8), 0, px(8)) }
+        root.addView(tvLink, wide(top = 14))
+        btnShare = button(MINT, 17f, 4).apply { text = "Позвать друзей"; visibility = View.GONE }
+        root.addView(btnShare, wide(top = 8))
+
+        tvStatus = text("", 15f).apply { setLineSpacing(px(3).toFloat(), 1f) }
+        root.addView(tvStatus, wide(top = 22))
+
+        return ScrollView(this).apply { setBackgroundColor(UV); isFillViewport = true; addView(root) }
     }
 
     private fun qr(text: String): Bitmap {
         val n = 480
         val m = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, n, n)
-        val px = IntArray(n * n) { if (m.get(it % n, it / n)) Color.BLACK else Color.WHITE }
+        val px = IntArray(n * n) { if (m.get(it % n, it / n)) INK else MILK }
         return Bitmap.createBitmap(px, n, n, Bitmap.Config.RGB_565)
     }
 
     private fun share() {
         val url = link(CaptureService.status) ?: return
         val i = Intent(Intent.ACTION_SEND).setType("text/plain")
-            .putExtra(Intent.EXTRA_TEXT, "Слушай мой эфир в WaveCast: $url")
+            .putExtra(Intent.EXTRA_TEXT, "Залетай в мой эфир: $url")
         startActivity(Intent.createChooser(i, "Поделиться эфиром"))
     }
 
@@ -222,7 +290,12 @@ class MainActivity : Activity() {
     companion object {
         private const val REQ_PERMS = 1
         private const val REQ_PROJECTION = 2
-        private val ACCENT = Color.parseColor("#4ADE80")
+        private val UV = Color.parseColor("#5B2EFF")
+        private val INK = Color.parseColor("#17102E")
+        private val LEMON = Color.parseColor("#FFE94A")
+        private val GUM = Color.parseColor("#FF5FA2")
+        private val MILK = Color.parseColor("#FFF8EC")
+        private val MINT = Color.parseColor("#7CF5C4")
         private val ROOM_RE = Regex("^[a-z0-9][a-z0-9_-]{0,47}$")
         private const val ROOM_CHARS = "abcdefghjkmnpqrstuvwxyz23456789"
         private const val KEY_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"

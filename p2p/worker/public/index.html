@@ -2,65 +2,150 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#0b0f14">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#5B2EFF">
 <title>WaveCast</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Crect width=%2224%22 height=%2224%22 rx=%225%22 fill=%22%230b0f14%22/%3E%3Cpath fill=%22%234ade80%22 d=%22M5 10h2v4H5zM9 7h2v10H9zM13 4h2v16h-2zM17 9h2v6h-2z%22/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Crect width=%2224%22 height=%2224%22 rx=%226%22 fill=%22%235B2EFF%22/%3E%3Cpath fill=%22%23FFE94A%22 d=%22M5 10h2.4v4H5zM9 7h2.4v10H9zM13 4h2.4v16H13zM17 9h2.4v6H17z%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@800;900&family=Onest:wght@500;600;700&display=swap">
 <style>
-  :root { color-scheme: dark; --acc: #4ade80; --mut: #8b98a5; }
+  :root { --uv: #5B2EFF; --ink: #17102E; --lemon: #FFE94A; --gum: #FF5FA2; --milk: #FFF8EC; --mint: #7CF5C4;
+          --display: "Unbounded", "Arial Black", "Segoe UI Black", system-ui, sans-serif;
+          --body: "Onest", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   * { box-sizing: border-box; }
-  body { margin: 0; min-height: 100vh; display: grid; place-items: center;
-         font: 16px/1.4 system-ui, -apple-system, sans-serif; background: #0b0f14; color: #e6edf3; }
-  .card { width: min(94vw, 400px); padding: 26px; border-radius: 22px; background: #131a22;
-          box-shadow: 0 10px 40px #0008; text-align: center; }
-  .top { display: flex; justify-content: space-between; align-items: center; }
-  h1 { margin: 0; font-size: 22px; letter-spacing: .5px; }
-  .room { font-size: 13px; color: var(--mut); background: #0b0f14; padding: 4px 10px; border-radius: 99px; }
-  .sub { color: var(--mut); font-size: 14px; margin: 8px 0 18px; text-align: left; min-height: 20px; }
-  .now { display: none; text-align: left; background: #0b0f14; border-radius: 14px; padding: 12px; margin-bottom: 16px; }
-  .now .t { font-weight: 600; } .now .a { color: var(--mut); font-size: 14px; }
-  button { width: 100%; padding: 16px; font-size: 18px; font-weight: 600; border: 0; border-radius: 14px;
-           background: var(--acc); color: #06210f; cursor: pointer; }
-  button.stop { background: #2a3440; color: #e6edf3; }
-  button.ghost { background: transparent; color: var(--mut); font-size: 14px; padding: 10px; font-weight: 500; margin-top: 8px; }
-  .row { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
-  input[type=range] { flex: 1; accent-color: var(--acc); }
-  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #555; margin-right: 6px; }
-  .dot.live { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
-  .stats { margin-top: 16px; font-size: 13px; color: var(--mut); display: grid; grid-template-columns: 1fr 1fr; gap: 6px; text-align: left; }
-  .stats b { color: #e6edf3; font-weight: 500; }
-  canvas { width: 100%; height: 44px; margin-top: 16px; }
-  .err { color: #fca5a5; }
+  html { background: var(--uv); }
+  body { margin: 0; min-height: 100vh; min-height: 100dvh; color: var(--milk); font: 500 16px/1.45 var(--body);
+         background: radial-gradient(circle at 1px 1px, #ffffff24 1.5px, transparent 2px) 0 0 / 18px 18px, var(--uv);
+         display: flex; justify-content: center; }
+  main { width: min(100%, 440px); padding: 20px 22px 28px; display: flex; flex-direction: column; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .brand { font: 800 15px/1 var(--display); color: var(--lemon); letter-spacing: -.01em; }
+  .pill { font: 700 13px/1 var(--body); padding: 8px 12px; border-radius: 99px; border: 2.5px solid var(--ink);
+          background: var(--milk); color: var(--ink); display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .pill i { width: 9px; height: 9px; border-radius: 50%; background: #9a93ad; }
+  .pill.live { background: var(--gum); }
+  .pill.live i { background: var(--milk); animation: blink 1.2s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .15; } }
+  h1 { margin: 26px 0 6px; font: 900 clamp(40px, 15vw, 76px)/.95 var(--display); letter-spacing: -.04em;
+       color: var(--milk); text-shadow: 4px 4px 0 var(--ink); overflow-wrap: anywhere; }
+  h1.long { font-size: clamp(28px, 9vw, 44px); text-shadow: 3px 3px 0 var(--ink); }
+  #state { margin: 0; min-height: 24px; font-weight: 600; }
+  #state.err { color: var(--lemon); }
+  .stage { position: relative; width: min(100%, 330px); aspect-ratio: 1; margin: 14px auto 6px; display: grid; place-items: center; }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #btn { position: relative; width: 56%; aspect-ratio: 1; border-radius: 50%; border: 4px solid var(--ink); cursor: pointer;
+         background: var(--lemon); color: var(--ink); box-shadow: 7px 7px 0 var(--ink); display: grid; place-items: center;
+         transition: transform .08s, box-shadow .08s, background .15s; -webkit-tap-highlight-color: transparent; }
+  #btn:active { transform: translate(5px, 5px); box-shadow: 2px 2px 0 var(--ink); }
+  #btn:focus-visible, .sticker:focus-visible, input:focus-visible { outline: 3px solid var(--milk); outline-offset: 4px; }
+  #btn svg { width: 42%; height: 42%; }
+  #btn .stop { display: none; }
+  #btn.on { background: var(--gum); }
+  #btn.on .play { display: none; } #btn.on .stop { display: block; }
+  #btn:disabled { background: #b9b3c9; cursor: default; }
+  #hint { text-align: center; margin: 0 0 18px; font: 800 15px/1.2 var(--display); letter-spacing: -.02em; }
+  .now { display: none; align-items: center; gap: 12px; margin: 0 8px 18px 0; padding: 12px 14px; background: var(--mint); color: var(--ink);
+         border: 3px solid var(--ink); border-radius: 18px; box-shadow: 5px 5px 0 var(--ink); transform: rotate(-1.5deg); }
+  .now img { width: 52px; height: 52px; border-radius: 10px; border: 2.5px solid var(--ink); object-fit: cover; flex: none; }
+  .now a { color: inherit; text-decoration: none; min-width: 0; }
+  .now .t { font: 800 16px/1.2 var(--display); letter-spacing: -.02em; overflow-wrap: anywhere; } .now .a { font-weight: 600; }
+  .dj { display: none; margin: 0 8px 18px 0; padding: 12px 14px; background: var(--milk); color: var(--ink); font-weight: 600;
+        border: 3px solid var(--ink); border-radius: 18px 18px 18px 4px; box-shadow: 5px 5px 0 var(--ink); }
+  .vol { display: flex; align-items: center; gap: 12px; }
+  .vol svg { width: 22px; height: 22px; flex: none; }
+  input[type=range] { -webkit-appearance: none; appearance: none; flex: 1; height: 14px; border-radius: 99px; margin: 0;
+         background: var(--ink); border: 0; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; border-radius: 50%;
+         background: var(--lemon); border: 3.5px solid var(--ink); cursor: pointer; }
+  input[type=range]::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: var(--lemon); border: 3.5px solid var(--ink); cursor: pointer; }
+  .tune { display: flex; align-items: center; gap: 12px; margin-top: 14px; font-size: 14px; font-weight: 600; }
+  .tune output { width: 62px; text-align: right; }
+  .foot { margin-top: 22px; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .sticker { white-space: nowrap; flex: none; font: 800 14px/1 var(--display); letter-spacing: -.02em; padding: 14px 18px; border-radius: 99px; cursor: pointer;
+         background: var(--milk); color: var(--ink); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink);
+         transition: transform .08s, box-shadow .08s; }
+  .sticker:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 var(--ink); }
+  .meta { font-size: 13px; font-weight: 600; text-align: right; opacity: .85; line-height: 1.5; }
+  @media (prefers-reduced-motion: reduce) { .pill.live i { animation: none; } #btn, .sticker { transition: none; } }
 </style>
 </head>
 <body>
-<div class="card">
-  <div class="top"><h1>WaveCast</h1><span class="room" id="room"></span></div>
-  <div class="sub" id="state"><span class="dot"></span>подключение…</div>
-  <div class="now" id="now"><div class="t" id="title"></div><div class="a" id="artist"></div></div>
-  <button id="btn">▶ Слушать</button>
-  <canvas id="viz" width="600" height="88"></canvas>
-  <div class="row">🔈<input id="vol" type="range" min="0" max="1" step="0.01" value="1">🔊</div>
-  <div class="stats">
-    <div>Слушателей: <b id="cnt">–</b></div>
-    <div>Связь: <b id="link">–</b></div>
+<main>
+  <header>
+    <span class="brand">WaveCast</span>
+    <span class="pill" id="pill"><i></i><span id="cnt">не в эфире</span></span>
+  </header>
+  <h1 id="room">эфир</h1>
+  <p id="state">подключаюсь…</p>
+  <div class="stage">
+    <canvas id="viz"></canvas>
+    <button id="btn" aria-label="Слушать">
+      <svg class="play" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 3.5v17a1 1 0 0 0 1.5.86l14-8.5a1 1 0 0 0 0-1.72l-14-8.5A1 1 0 0 0 7 3.5z"/></svg>
+      <svg class="stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor"/></svg>
+    </button>
   </div>
-  <button class="ghost" id="share">Поделиться ссылкой</button>
+  <p id="hint">Жми и слушай</p>
+  <div class="now" id="now"><div><div class="t" id="title"></div><div class="a" id="artist"></div></div></div>
+  <label class="vol">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 4V5L7 9H3zm12.5 3a4 4 0 0 0-2-3.46v6.92a4 4 0 0 0 2-3.46z"/></svg>
+    <input id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Громкость">
+  </label>
+  <div class="foot">
+    <button class="sticker" id="share">Позвать друзей</button>
+    <div class="meta" id="link"></div>
+  </div>
   <audio id="audio" playsinline></audio>
-</div>
+</main>
 <script>
 (() => {
   const $ = id => document.getElementById(id);
   const m = location.pathname.match(/^\/r\/([^/]+)/);
   const room = m ? decodeURIComponent(m[1]).toLowerCase() : '';
   const audio = $('audio');
-  let ws, pc, ice = [], live = false, wanted = false, retry = 500, rejoin, fatal = false, viz;
+  let ws, pc, ice = [], live = false, wanted = false, retry = 500, rejoin, fatal = false, analyser, bins;
 
-  const setState = (txt, on, err) => { $('state').innerHTML = `<span class="dot ${on ? 'live' : ''}"></span><span class="${err ? 'err' : ''}">${txt}</span>`; };
+  // Живое кольцо вокруг кнопки: спектр звука в полярных координатах
+  function ring(cv, getData) {
+    const g = cv.getContext('2d'), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const css = getComputedStyle(document.documentElement), col = n => css.getPropertyValue(n).trim();
+    const N = 64, lvl = new Float32Array(N);
+    function frame() {
+      const dpr = Math.min(devicePixelRatio || 1, 2), w = cv.clientWidth * dpr;
+      if (cv.width !== w) cv.width = cv.height = w;
+      const data = getData(), c = w / 2, base = w * 0.335, amp = w * 0.14;
+      g.clearRect(0, 0, w, w);
+      for (const [color, k, off] of [[col('--ink'), 1, 5 * dpr], [col('--gum'), 1, 0], [col('--mint'), .45, 0]]) {
+        g.beginPath();
+        for (let i = 0; i <= N; i++) {
+          const j = i % N, m = j < N / 2 ? j : N - j;               // зеркалим, чтобы кольцо смыкалось
+          const v = data ? data[2 + Math.floor(m * data.length / N * 0.9)] / 255 : 0;
+          if (i < N && color === col('--ink')) lvl[j] += (v - lvl[j]) * 0.35;
+          const soft = (lvl[(j + N - 1) % N] + 2 * lvl[j] + lvl[(j + 1) % N]) / 4;   // сглаживаем соседние лучи
+          const r = base + (still ? 0 : soft) * amp * k + (k < 1 ? -w * 0.02 : 0), a = j / N * Math.PI * 2 - Math.PI / 2;
+          g[i ? 'lineTo' : 'moveTo'](c + off + r * Math.cos(a), c + off + r * Math.sin(a));
+        }
+        g.closePath(); g.fillStyle = color; g.fill();
+        if (off === 0 && k === 1) { g.lineWidth = 3.5 * dpr; g.strokeStyle = col('--ink'); g.stroke(); }
+      }
+      if (!still || !frame.done) requestAnimationFrame(frame);
+      frame.done = true;
+    }
+    frame();
+  }
+  ring($('viz'), () => { if (!analyser || audio.paused) return null; analyser.getByteFrequencyData(bins); return bins; });
+
+  const setState = (txt, err) => { $('state').textContent = txt; $('state').className = err ? 'err' : ''; };
+  const setLive = (on, n) => {
+    $('pill').className = 'pill' + (on ? ' live' : '');
+    if (!on) $('cnt').textContent = 'не в эфире';
+    else if (n != null) $('cnt').textContent = n + ' ' + (n % 10 === 1 && n % 100 !== 11 ? 'слушает' : 'слушают');
+    else if ($('cnt').textContent === 'не в эфире') $('cnt').textContent = 'в эфире';
+  };
   const send = o => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); };
 
-  if (!room) { setState('Открой ссылку на эфир, которую прислал ведущий', false); $('btn').disabled = true; return; }
-  $('room').textContent = room;
+  if (!room) { setState('Открой ссылку на эфир, которую прислал ведущий'); $('btn').disabled = true; $('hint').textContent = ''; return; }
+  $('room').textContent = room; if (room.length > 9) $('room').className = 'long';
+  document.title = room + ' — WaveCast';
 
   // Opus по умолчанию моно и ~32 кбит/с: просим у ведущего стерео и музыкальный битрейт
   const musicSdp = sdp => sdp.replace(/a=fmtp:(\d+) (.*useinbandfec=1[^\r\n]*)/g,
@@ -71,7 +156,7 @@
     ws.onopen = () => { retry = 500; };
     ws.onclose = () => {
       if (fatal) return;
-      if (!pc || pc.connectionState !== 'connected') setState('нет связи с сервисом, переподключаюсь…', false);
+      if (!pc || pc.connectionState !== 'connected') setState('Нет связи с сервисом, переподключаюсь…');
       setTimeout(connect, retry); retry = Math.min(retry * 2, 8000);
     };
     ws.onmessage = ev => onSignal(JSON.parse(ev.data)).catch(e => console.warn('signal', e));
@@ -81,7 +166,7 @@
     switch (d.type) {
       case 'hello':
         ice = d.iceServers || []; live = d.live;
-        if (!pc || pc.connectionState !== 'connected') setState(live ? 'ведущий в сети, соединяюсь…' : 'эфир не идёт — жди ведущего', false);
+        if (!pc || pc.connectionState !== 'connected') { setLive(false); setState(live ? 'Ведущий в сети, соединяюсь…' : 'Эфир ещё не начался. Страница сама подключится, когда ведущий выйдет.'); }
         break;
       case 'offer': {
         drop();
@@ -101,28 +186,28 @@
         break;
       case 'status':
         live = d.live !== false;
-        if ('listeners' in d) $('cnt').textContent = d.listeners;
-        if (!live) { drop(); $('now').style.display = 'none'; $('cnt').textContent = '–'; setState('эфир завершён — жди ведущего', false); }
+        if (!live) { drop(); $('now').style.display = 'none'; setLive(false); setState('Эфир закончился. Останься на странице — подключу, когда ведущий вернётся.'); }
+        else if (pc && pc.connectionState === 'connected') setLive(true, d.listeners);
         if (d.title) {
-          $('title').textContent = d.title; $('artist').textContent = d.artist || ''; $('now').style.display = 'block';
+          $('title').textContent = d.title; $('artist').textContent = d.artist || ''; $('now').style.display = 'flex';
           if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: d.title, artist: d.artist || 'WaveCast' });
         }
+        ui();
         break;
       case 'full':
-        setState('Мест нет: у ведущего максимум слушателей', false, true);
+        setState('Мест нет: у ведущего максимум слушателей. Попробуй позже.', true);
         break;
       case 'error':
-        fatal = true; setState(d.message || 'ошибка', false, true);
+        fatal = true; setState(d.message || 'Ошибка сервиса', true);
         break;
     }
   }
 
   function onLink(st) {
     clearTimeout(rejoin);
-    $('link').textContent = { connected: 'напрямую', connecting: 'соединение…', disconnected: 'потеряна', failed: 'не удалось' }[st] || '–';
-    if (st === 'connected') { setState('в эфире', true); report(); }
-    else if (st === 'disconnected') { setState('связь прервалась, жду…', false); rejoin = setTimeout(() => send({ type: 'join' }), 4000); }
-    else if (st === 'failed') { setState('не удалось соединиться напрямую, пробую ещё…', false, true); rejoin = setTimeout(() => send({ type: 'join' }), 1500); }
+    if (st === 'connected') { setLive(true); setState(wanted ? 'Ты в эфире' : 'Эфир идёт'); report(); }
+    else if (st === 'disconnected') { setState('Связь прервалась, жду…'); rejoin = setTimeout(() => send({ type: 'join' }), 4000); }
+    else if (st === 'failed') { $('link').textContent = ''; setState('Напрямую соединиться не вышло, пробую ещё…', true); rejoin = setTimeout(() => send({ type: 'join' }), 1500); }
   }
 
   // показываем, идёт ли звук напрямую или через TURN-ретранслятор
@@ -131,54 +216,50 @@
       const st = await pc.getStats(); let pair;
       st.forEach(r => { if (r.type === 'transport' && r.selectedCandidatePairId) pair = st.get(r.selectedCandidatePairId); });
       const loc = pair && st.get(pair.localCandidateId);
-      if (loc) $('link').textContent = loc.candidateType === 'relay' ? 'через TURN' : 'напрямую';
+      $('link').textContent = loc && loc.candidateType === 'relay' ? 'звук идёт через TURN' : 'звук идёт напрямую';
     } catch {}
   }
 
-  function drop() { clearTimeout(rejoin); if (pc) { pc.onconnectionstatechange = null; pc.close(); pc = null; } $('link').textContent = '–'; }
+  function drop() { clearTimeout(rejoin); if (pc) { pc.onconnectionstatechange = null; pc.close(); pc = null; } $('link').textContent = ''; }
+
+  function ui() {
+    $('btn').className = wanted ? 'on' : '';
+    $('btn').setAttribute('aria-label', wanted ? 'Остановить' : 'Слушать');
+    $('hint').textContent = !wanted ? 'Жми и слушай' : audio.srcObject && live ? 'Звук идёт' : 'Жду эфир — заиграет само';
+    if (live && pc && pc.connectionState === 'connected') setState(wanted ? 'Ты в эфире' : 'Эфир идёт');
+  }
 
   async function play() {
+    try { await audio.play(); tap(); }
+    catch { wanted = false; $('hint').textContent = 'Нажми ещё раз'; }
+    ui();
+  }
+
+  function tap() {   // анализатор для кольца; звук играет сам <audio>
+    if (!audio.srcObject) return;
     try {
-      await audio.play();
-      $('btn').textContent = '■ Стоп'; $('btn').className = 'stop';
-      startViz();
-    } catch { wanted = false; $('btn').textContent = '▶ Нажми ещё раз'; }
+      tap.ctx = tap.ctx || new (window.AudioContext || window.webkitAudioContext)();
+      tap.ctx.resume();
+      if (tap.stream === audio.srcObject) return;
+      if (tap.src) tap.src.disconnect();
+      analyser = tap.ctx.createAnalyser(); analyser.fftSize = 256; analyser.smoothingTimeConstant = .6;
+      bins = new Uint8Array(analyser.frequencyBinCount);
+      tap.src = tap.ctx.createMediaStreamSource(tap.stream = audio.srcObject); tap.src.connect(analyser);
+    } catch {}
   }
 
   $('btn').onclick = () => {
     wanted = !wanted;
-    if (wanted) { if (audio.srcObject) play(); else { $('btn').textContent = '■ Стоп (жду эфир)'; $('btn').className = 'stop'; } }
-    else { audio.pause(); $('btn').textContent = '▶ Слушать'; $('btn').className = ''; }
+    if (wanted && audio.srcObject) return play();
+    if (!wanted) audio.pause();
+    ui();
   };
   $('vol').oninput = e => { audio.volume = +e.target.value; };
   $('share').onclick = async () => {
     const url = location.href;
-    try { if (navigator.share) return await navigator.share({ title: 'WaveCast', url }); } catch { return; }
-    try { await navigator.clipboard.writeText(url); $('share').textContent = 'Ссылка скопирована'; } catch { prompt('Ссылка:', url); }
+    try { if (navigator.share) return await navigator.share({ title: 'WaveCast', text: 'Залетай в мой эфир', url }); } catch { return; }
+    try { await navigator.clipboard.writeText(url); $('share').textContent = 'Ссылка скопирована'; setTimeout(() => $('share').textContent = 'Позвать друзей', 2000); } catch { prompt('Ссылка:', url); }
   };
-
-  function startViz() {
-    if (viz || !audio.srcObject) return;
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const an = ctx.createAnalyser(); an.fftSize = 256;
-      let src;
-      const attach = () => { try { src && src.disconnect(); } catch {} src = ctx.createMediaStreamSource(audio.srcObject); src.connect(an); };
-      attach(); audio.addEventListener('loadedmetadata', attach);
-      const cv = $('viz'), g = cv.getContext('2d'), data = new Uint8Array(an.frequencyBinCount);
-      viz = true;
-      (function loop() {
-        requestAnimationFrame(loop);
-        an.getByteFrequencyData(data);
-        g.clearRect(0, 0, cv.width, cv.height);
-        const n = 48, w = cv.width / n; g.fillStyle = '#4ade80';
-        for (let i = 0; i < n; i++) {
-          const h = Math.max(2, data[Math.floor(i * data.length / n / 2)] / 255 * cv.height);
-          g.fillRect(i * w + 2, (cv.height - h) / 2, w - 4, h);
-        }
-      })();
-    } catch {}
-  }
 
   connect();
 })();

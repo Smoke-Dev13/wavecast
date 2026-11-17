@@ -117,7 +117,7 @@ class CaptureService : Service() {
         // Локальный сервер нужен всегда: он раздаёт звук по Wi-Fi и кормит P2P-страницу
         val want = intent.getIntExtra(EXTRA_PORT, 8080)
         val srv = (want until want + 10).firstNotNullOfOrNull { p ->
-            runCatching { p to LocalServer(p, assets) { n -> publish(status.copy(localListeners = (n - p2pFeed()).coerceAtLeast(0))); updateNotification() } }.getOrNull()
+            runCatching { p to LocalServer(p, assets) { n -> publish(status.copy(localListeners = n)); updateNotification() } }.getOrNull()
         }
         if (srv == null) { fail("Порты $want–${want + 9} заняты"); return }
         val port = srv.first
@@ -177,9 +177,6 @@ class CaptureService : Service() {
         check(rec.state == AudioRecord.STATE_INITIALIZED) { "не инициализирован" }
         return rec
     }
-
-    /** P2P-страница сама подключена к локальному серверу — не считаем её слушателем. */
-    private fun p2pFeed() = if (p2p != null) 1 else 0
 
     private fun chunkBytes() = SAMPLE_RATE * CHUNK_MS / 1000 * CHANNELS * 2
 
