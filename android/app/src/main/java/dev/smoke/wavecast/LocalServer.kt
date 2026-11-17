@@ -260,6 +260,7 @@ class LocalServer(
         private const val WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
         private const val MAX_QUEUE = 40
         private const val MAX_PENDING = 5
+        private val LAN_IFACES = listOf("wlan", "swlan", "ap", "softap", "wifi", "rndis", "usb", "ncm", "eth", "bt-pan", "p2p")
 
         private fun readLine(input: InputStream): String? {
             val sb = StringBuilder()
@@ -284,7 +285,9 @@ class LocalServer(
         /** Все IPv4-адреса телефона в локальных сетях (Wi-Fi, точка доступа, USB-модем). */
         fun localAddresses(): List<String> =
             NetworkInterface.getNetworkInterfaces().toList()
-                .filter { it.isUp && !it.isLoopback }
+                // только Wi-Fi, точка доступа, USB/Bluetooth-модем и Ethernet; мобильный интернет (rmnet, ccmni…)
+                // даёт «внутренний» адрес оператора, до которого из соседних устройств не достучаться
+                .filter { it.isUp && !it.isLoopback && LAN_IFACES.any { p -> it.name.startsWith(p) } }
                 .flatMap { it.inetAddresses.toList() }
                 .filterIsInstance<Inet4Address>()
                 .filter { it.isSiteLocalAddress }

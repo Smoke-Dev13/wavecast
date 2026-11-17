@@ -57,7 +57,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(buildUi())
-        etService.setText(prefs.getString("service", ""))
+        etService.setText(prefs.getString("service", null)?.takeIf { it.isNotBlank() } ?: DEFAULT_SERVICE)
         etRoom.setText(prefs.getString("room", null) ?: random(ROOM_CHARS, 12))
         btn.setOnClickListener { if (CaptureService.status.running) stop() else askPermissions() }
         btnShare.setOnClickListener { share() }
@@ -346,6 +346,8 @@ class MainActivity : Activity() {
         private val MILK = Color.parseColor("#EFEAE2")
         private val PANEL = Color.parseColor("#2A2640")
         private val DIM = Color.parseColor("#9C96B0")
+        /** Сигнальный сервис по умолчанию — чтобы эфир по ссылке работал без настройки. */
+        const val DEFAULT_SERVICE = "wavecast.smokedev13.workers.dev"
         private val ROOM_RE = Regex("^[a-z0-9][a-z0-9_-]{0,47}$")
         private const val ROOM_CHARS = "abcdefghjkmnpqrstuvwxyz23456789"
         private const val KEY_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"

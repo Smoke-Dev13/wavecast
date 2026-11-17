@@ -41,6 +41,18 @@
   const m = location.pathname.match(/^\/r\/([^/]+)/);
   const room = m ? decodeURIComponent(m[1]) : '';
   $('room').textContent = room || 'эфир'; if (room.length > 9) $('room').className = 'long';
+
+  // Название эфира: уменьшаем шрифт, пока самое длинное слово не влезет в строку, а не рвём его посреди
+  function fitTitle() {
+    const h = $('room');
+    h.style.fontSize = ''; h.classList.remove('squeeze');
+    let size = parseFloat(getComputedStyle(h).fontSize);
+    while (h.scrollWidth > h.clientWidth + 1 && size > 24) { size -= 2; h.style.fontSize = size + 'px'; }
+    if (h.scrollWidth > h.clientWidth + 1) h.classList.add('squeeze');
+  }
+  addEventListener('resize', fitTitle);
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(fitTitle);
+  fitTitle();
   const base = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + (room ? '/ws/' + encodeURIComponent(room) : '/ws');
   const OPUS_CFG = { codec: 'opus', sampleRate: 48000, numberOfChannels: 2 };
 

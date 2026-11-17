@@ -27,7 +27,8 @@
   .pill.live i { background: var(--gum); animation: blink 2s ease-in-out infinite; }
   @keyframes blink { 50% { opacity: .35; } }
   h1 { margin: 26px 0 6px; font: 800 clamp(38px, 14vw, 72px)/1 var(--display); letter-spacing: -.04em;
-       color: var(--milk); overflow-wrap: anywhere; }
+       color: var(--milk); overflow-wrap: normal; hyphens: none; }
+  h1.squeeze { overflow-wrap: anywhere; }
   h1.long { font-size: clamp(28px, 9vw, 44px); }
   #state { margin: 0; min-height: 24px; color: var(--dim); }
   #state.err { color: var(--gum); }
@@ -164,6 +165,18 @@
 
   if (!room) { setState('Открой ссылку на эфир, которую прислал ведущий'); $('btn').disabled = true; $('hint').textContent = ''; return; }
   $('room').textContent = room; if (room.length > 9) $('room').className = 'long';
+
+  // Название эфира: уменьшаем шрифт, пока самое длинное слово не влезет в строку, а не рвём его посреди
+  function fitTitle() {
+    const h = $('room');
+    h.style.fontSize = ''; h.classList.remove('squeeze');
+    let size = parseFloat(getComputedStyle(h).fontSize);
+    while (h.scrollWidth > h.clientWidth + 1 && size > 24) { size -= 2; h.style.fontSize = size + 'px'; }
+    if (h.scrollWidth > h.clientWidth + 1) h.classList.add('squeeze');
+  }
+  addEventListener('resize', fitTitle);
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(fitTitle);
+  fitTitle();
   document.title = room + ' — WaveCast';
 
   // Opus по умолчанию моно и ~32 кбит/с: просим у ведущего стерео и музыкальный битрейт
