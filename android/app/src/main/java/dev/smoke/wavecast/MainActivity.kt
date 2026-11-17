@@ -154,7 +154,7 @@ class MainActivity : Activity() {
         val url = if (on) link(s) else null
         listOf(tvLink, qrCard, btnShare).forEach { it.visibility = if (url != null) View.VISIBLE else View.GONE }
         if (url != null) {
-            tvLink.text = url
+            tvLink.text = url.removePrefix("https://").removePrefix("http://")   // полная ссылка — в QR и при копировании
             if (qrFor != url) { ivQr.setImageBitmap(qr(url)); qrFor = url }
         }
 
@@ -268,7 +268,12 @@ class MainActivity : Activity() {
             addView(ivQr, FrameLayout.LayoutParams(px(200), px(200)))
         }
         root.addView(qrCard, wrap(top = 26, center = true))
-        tvLink = text("", 15f, LILAC, Typeface.DEFAULT_BOLD).apply { gravity = Gravity.CENTER; visibility = View.GONE; setPadding(0, px(8), 0, px(8)) }
+        tvLink = text("", 15f, LILAC, Typeface.DEFAULT_BOLD).apply {
+            gravity = Gravity.CENTER; visibility = View.GONE; setPadding(0, px(8), 0, px(8))
+            // ссылка всегда в одну строку: шрифт уменьшается до 10sp, дальше — многоточие в середине
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+            setAutoSizeTextTypeUniformWithConfiguration(10, 15, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
+        }
         root.addView(tvLink, wide(top = 14))
         btnShare = button(PANEL, MILK, 16f).apply { text = "Позвать друзей"; visibility = View.GONE }
         root.addView(btnShare, wide(top = 8))

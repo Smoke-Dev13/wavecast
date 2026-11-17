@@ -60,18 +60,28 @@ RING_JS
   const send = o => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); };
 
   if (!room) { setState('Открой ссылку на эфир, которую прислал ведущий'); $('btn').disabled = true; $('hint').textContent = ''; return; }
-  $('room').textContent = room; if (room.length > 9) $('room').className = 'long';
+  $('room').textContent = room;
 
-  // Название эфира: уменьшаем шрифт, пока самое длинное слово не влезет в строку, а не рвём его посреди
+  // Название эфира никогда не рвём посреди слова:
+  //  1) одна строка, уменьшаем шрифт до 26px;
+  //  2) не влезло — переносим только по дефису/пробелу и уменьшаем до 18px;
+  //  3) и это не помогло (48 символов без дефисов) — только тогда перенос где угодно.
+  // Пересчитываем при подгрузке шрифта и при любом изменении ширины.
   function fitTitle() {
-    const h = $('room');
-    h.style.fontSize = ''; h.classList.remove('squeeze');
+    const h = $('room'), box = h.parentElement.clientWidth;
+    if (!box) return;                                   // страница скрыта — посчитаем, когда покажут
+    const fits = () => h.scrollWidth <= box + 1;
+    h.className = ''; h.style.fontSize = '';
     let size = parseFloat(getComputedStyle(h).fontSize);
-    while (h.scrollWidth > h.clientWidth + 1 && size > 24) { size -= 2; h.style.fontSize = size + 'px'; }
-    if (h.scrollWidth > h.clientWidth + 1) h.classList.add('squeeze');
+    while (!fits() && size > 26) { size -= 1; h.style.fontSize = size + 'px'; }
+    if (fits()) return;
+    h.className = 'wrap';
+    while (!fits() && size > 18) { size -= 1; h.style.fontSize = size + 'px'; }
+    if (!fits()) h.className = 'squeeze';
   }
-  addEventListener('resize', fitTitle);
-  (document.fonts ? document.fonts.ready : Promise.resolve()).then(fitTitle);
+  if ('ResizeObserver' in window) new ResizeObserver(() => fitTitle()).observe(document.querySelector('main'));
+  else addEventListener('resize', fitTitle);
+  if (document.fonts) { document.fonts.addEventListener('loadingdone', fitTitle); document.fonts.ready.then(fitTitle); }
   fitTitle();
   document.title = room + ' — WaveCast';
 
@@ -122,7 +132,7 @@ RING_JS
         if (!live) { drop(); waiting = false; $('now').style.display = 'none'; setLive(false); setState('Эфир закончился. Останься на странице — подключу, когда ведущий вернётся.'); }
         else if (pc && pc.connectionState === 'connected') setLive(true, d.listeners);
         if (d.title) {
-          $('title').textContent = d.title; $('artist').textContent = d.artist || ''; $('now').style.display = 'flex';
+          $('title').textContent = $('title').title = d.title; $('artist').textContent = $('artist').title = d.artist || ''; $('now').style.display = 'flex';
           if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: d.title, artist: d.artist || 'WaveCast' });
         }
         ui();

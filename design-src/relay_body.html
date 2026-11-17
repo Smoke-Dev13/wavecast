@@ -40,18 +40,28 @@
   const $ = id => document.getElementById(id);
   const m = location.pathname.match(/^\/r\/([^/]+)/);
   const room = m ? decodeURIComponent(m[1]) : '';
-  $('room').textContent = room || 'эфир'; if (room.length > 9) $('room').className = 'long';
+  $('room').textContent = room || 'эфир';
 
-  // Название эфира: уменьшаем шрифт, пока самое длинное слово не влезет в строку, а не рвём его посреди
+  // Название эфира никогда не рвём посреди слова:
+  //  1) одна строка, уменьшаем шрифт до 26px;
+  //  2) не влезло — переносим только по дефису/пробелу и уменьшаем до 18px;
+  //  3) и это не помогло (48 символов без дефисов) — только тогда перенос где угодно.
+  // Пересчитываем при подгрузке шрифта и при любом изменении ширины.
   function fitTitle() {
-    const h = $('room');
-    h.style.fontSize = ''; h.classList.remove('squeeze');
+    const h = $('room'), box = h.parentElement.clientWidth;
+    if (!box) return;                                   // страница скрыта — посчитаем, когда покажут
+    const fits = () => h.scrollWidth <= box + 1;
+    h.className = ''; h.style.fontSize = '';
     let size = parseFloat(getComputedStyle(h).fontSize);
-    while (h.scrollWidth > h.clientWidth + 1 && size > 24) { size -= 2; h.style.fontSize = size + 'px'; }
-    if (h.scrollWidth > h.clientWidth + 1) h.classList.add('squeeze');
+    while (!fits() && size > 26) { size -= 1; h.style.fontSize = size + 'px'; }
+    if (fits()) return;
+    h.className = 'wrap';
+    while (!fits() && size > 18) { size -= 1; h.style.fontSize = size + 'px'; }
+    if (!fits()) h.className = 'squeeze';
   }
-  addEventListener('resize', fitTitle);
-  (document.fonts ? document.fonts.ready : Promise.resolve()).then(fitTitle);
+  if ('ResizeObserver' in window) new ResizeObserver(() => fitTitle()).observe(document.querySelector('main'));
+  else addEventListener('resize', fitTitle);
+  if (document.fonts) { document.fonts.addEventListener('loadingdone', fitTitle); document.fonts.ready.then(fitTitle); }
   fitTitle();
   const base = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + (room ? '/ws/' + encodeURIComponent(room) : '/ws');
   const OPUS_CFG = { codec: 'opus', sampleRate: 48000, numberOfChannels: 2 };
@@ -108,7 +118,7 @@ RING_JS
         ui();
         break;
       case 'track':
-        $('title').textContent = m.title || ''; $('artist').textContent = m.artist || '';
+        $('title').textContent = $('title').title = m.title || ''; $('artist').textContent = $('artist').title = m.artist || '';
         $('cover').src = m.cover || ''; $('cover').style.display = m.cover ? 'block' : 'none';
         if (m.url) $('tlink').href = m.url; else $('tlink').removeAttribute('href');
         $('now').style.display = 'flex';
