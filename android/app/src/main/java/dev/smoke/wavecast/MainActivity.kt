@@ -7,39 +7,30 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.Drawable
-import android.graphics.drawable.GradientDrawable
-import android.annotation.SuppressLint
-import android.view.MotionEvent
-import android.widget.FrameLayout
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
-import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
-import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
-import java.security.SecureRandom
 
 class MainActivity : Activity() {
 
-    private val prefs by lazy { getSharedPreferences("wavecast", MODE_PRIVATE) }
+    private val s by lazy { Settings(this) }
 
-    private lateinit var etService: EditText
-    private lateinit var etRoom: EditText
     private lateinit var btn: Button
     private lateinit var btnShare: Button
+    private lateinit var tvRoom: TextView
+    private lateinit var tvHint: TextView
     private lateinit var tvStatus: TextView
     private lateinit var tvLink: TextView
     private lateinit var ivQr: ImageView
@@ -47,38 +38,30 @@ class MainActivity : Activity() {
     private lateinit var tvLive: TextView
     private lateinit var tvCount: TextView
     private lateinit var tvCountLabel: TextView
-    private lateinit var lblService: TextView
-    private lateinit var lblRoom: TextView
     private lateinit var reqBox: LinearLayout
-    private lateinit var swAuto: Switch
-    private lateinit var swMute: Switch
+    private lateinit var updCard: LinearLayout
+    private lateinit var updTitle: TextView
+    private lateinit var updNotes: TextView
+    private lateinit var updBtn: Button
+    private var updBusy = false
     private var shownRequests: List<CaptureService.Request>? = null
     private var qrFor: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        paintBars()
         setContentView(buildUi())
-        etService.setText(prefs.getString("service", null)?.takeIf { it.isNotBlank() } ?: DEFAULT_SERVICE)
-        etRoom.setText(prefs.getString("room", null) ?: random(ROOM_CHARS, 12))
         btn.setOnClickListener { if (CaptureService.status.running) stop() else askPermissions() }
         btnShare.setOnClickListener { share() }
-        swMute.isChecked = prefs.getBoolean("muteMessengers", true)
-        swMute.setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean("muteMessengers", on).apply() }
-        swAuto.isChecked = prefs.getBoolean("autoAllow", false)
-        swAuto.setOnCheckedChangeListener { _, on ->
-            prefs.edit().putBoolean("autoAllow", on).apply()
-            if (CaptureService.status.running && CaptureService.status.autoAllow != on) {
-                startService(Intent(this, CaptureService::class.java)
-                    .setAction(CaptureService.ACTION_AUTO).putExtra(CaptureService.EXTRA_AUTO, on))
-            }
-        }
         tvLink.setOnClickListener { copyLink() }
+        updBtn.setOnClickListener { update() }
     }
 
     override fun onResume() {
         super.onResume()
         CaptureService.listener = { render(it) }
         render(CaptureService.status)
+        Updater.check(this) { rel, _ -> renderUpdate(rel) }
     }
 
     override fun onPause() {
@@ -86,18 +69,9 @@ class MainActivity : Activity() {
         super.onPause()
     }
 
-    // ---- запуск ----
-
-    private fun room() = etRoom.text.toString().trim().lowercase()
-
-    private fun hostKey(): String =
-        prefs.getString("hostKey", null) ?: random(KEY_CHARS, 32).also { prefs.edit().putString("hostKey", it).apply() }
+    // ---- запуск эфира ----
 
     private fun askPermissions() {
-        if (etService.text.isNotBlank() && !ROOM_RE.matches(room())) {
-            toast("Название эфира: латиница, цифры, - и _"); return
-        }
-        prefs.edit().putString("service", etService.text.toString().trim()).putString("room", room()).apply()
         val need = mutableListOf(Manifest.permission.RECORD_AUDIO)
         if (Build.VERSION.SDK_INT >= 33) need += Manifest.permission.POST_NOTIFICATIONS
         val missing = need.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
@@ -127,11 +101,11 @@ class MainActivity : Activity() {
             .setAction(CaptureService.ACTION_START)
             .putExtra(CaptureService.EXTRA_CODE, resultCode)
             .putExtra(CaptureService.EXTRA_DATA, data)
-            .putExtra(CaptureService.EXTRA_SERVICE, etService.text.toString().trim())
-            .putExtra(CaptureService.EXTRA_ROOM, room())
-            .putExtra(CaptureService.EXTRA_HOST_KEY, hostKey())
-            .putExtra(CaptureService.EXTRA_AUTO, swAuto.isChecked)
-            .putExtra(CaptureService.EXTRA_MUTE_MESSENGERS, swMute.isChecked)
+            .putExtra(CaptureService.EXTRA_SERVICE, s.service)
+            .putExtra(CaptureService.EXTRA_ROOM, s.room)
+            .putExtra(CaptureService.EXTRA_HOST_KEY, s.hostKey)
+            .putExtra(CaptureService.EXTRA_AUTO, s.autoAllow)
+            .putExtra(CaptureService.EXTRA_MUTE_MESSENGERS, s.muteMessengers)
         startForegroundService(i)
     }
 
@@ -139,24 +113,51 @@ class MainActivity : Activity() {
         startService(Intent(this, CaptureService::class.java).setAction(CaptureService.ACTION_STOP))
     }
 
-    // ---- UI ----
+    // ---- обновление ----
 
-    private fun link(s: CaptureService.Status) = s.p2pUrl ?: s.localUrls.firstOrNull()
+    private fun renderUpdate(rel: Updater.Release?) {
+        val show = rel != null && !CaptureService.status.running
+        updCard.visibility = if (show) View.VISIBLE else View.GONE
+        if (rel == null || updBusy) return
+        updTitle.text = "Вышла версия ${rel.versionName}"
+        updNotes.text = rel.notes
+        updNotes.visibility = if (rel.notes.isBlank()) View.GONE else View.VISIBLE
+        updBtn.text = "Обновить"
+    }
 
-    private fun render(s: CaptureService.Status) {
-        val on = s.running
+    private fun update() {
+        val rel = Updater.available ?: return
+        if (!Updater.ensureInstallAllowed(this)) { toast("Разреши WaveCast устанавливать обновления и нажми «Обновить» ещё раз"); return }
+        updBusy = true
+        updBtn.isEnabled = false
+        Updater.downloadAndInstall(this, rel) { text, finished ->
+            updBtn.text = text ?: "Обновить"
+            if (finished) { updBusy = false; updBtn.isEnabled = true }
+        }
+    }
+
+    // ---- экран ----
+
+    private fun link(st: CaptureService.Status) = st.p2pUrl ?: st.localUrls.firstOrNull()
+
+    private fun render(st: CaptureService.Status) {
+        val on = st.running
         btn.text = if (on) "Закончить эфир" else "В эфир"
-        btn.background = shape(if (on) MILK else LILAC, 99)
+        btn.background = shape(if (on) Ui.MILK else Ui.LILAC, 99)
         tvLive.text = if (on) "в эфире" else "не в эфире"
-        tvLive.setTextColor(if (on) CORAL else DIM)
-        val total = s.p2pListeners + s.localListeners
+        tvLive.setTextColor(if (on) Ui.CORAL else Ui.DIM)
+
+        tvRoom.text = "Эфир «${s.room}»"
+        tvRoom.visibility = if (on) View.GONE else View.VISIBLE
+        tvHint.visibility = tvRoom.visibility
+
+        val total = st.p2pListeners + st.localListeners
         tvCount.visibility = if (on) View.VISIBLE else View.GONE
         tvCount.text = "$total"
         tvCountLabel.visibility = tvCount.visibility
         tvCountLabel.text = if (total % 10 == 1 && total % 100 != 11) "слушает сейчас" else "слушают сейчас"
-        swMute.isEnabled = !on
-        listOf(lblService, etService, lblRoom, etRoom).forEach { it.visibility = if (on) View.GONE else View.VISIBLE }
-        val url = if (on) link(s) else null
+
+        val url = if (on) link(st) else null
         listOf(tvLink, qrCard, btnShare).forEach { it.visibility = if (url != null) View.VISIBLE else View.GONE }
         if (url != null) {
             tvLink.text = url.removePrefix("https://").removePrefix("http://")   // полная ссылка — в QR и при копировании
@@ -164,137 +165,98 @@ class MainActivity : Activity() {
         }
 
         val sb = StringBuilder()
-        if (s.error != null) sb.append("Не получилось: ${s.error}\n\n")
-        if (!on) {
-            sb.append("Нажми «В эфир» и включай музыку где угодно. Друзья услышат то же, что и ты.\n\n")
-            if (!swAuto.isChecked) sb.append("Каждый слушатель сначала просится в эфир, а ты пускаешь его кнопкой в уведомлении.\n\n")
-            sb.append(if (etService.text.isBlank()) "Без адреса сервиса эфир ловится только в твоей Wi-Fi сети или на твоей точке доступа."
-                      else "Друзья заходят по ссылке или QR-коду из любой сети.")
-        } else {
-            if (s.p2pUrl != null && !s.p2pConnected) sb.append("Нет связи с сервисом: ${s.p2pError ?: "подключаюсь…"}\n\n")
-            if (s.localUrls.isNotEmpty()) {
-                sb.append(if (s.p2pUrl != null) "Рядом и без интернета, в твоей Wi-Fi сети:\n" else "Ссылка работает в твоей Wi-Fi сети или на твоей точке доступа.\n")
-                if (s.p2pUrl != null) s.localUrls.forEach { sb.append("$it\n") }
-            } else if (s.p2pUrl == null) sb.append("Нет Wi-Fi сети: подключись к Wi-Fi или включи точку доступа.\n")
+        if (st.error != null) sb.append("Не получилось: ${st.error}\n\n")
+        if (on) {
+            if (st.p2pUrl != null && !st.p2pConnected) sb.append("Нет связи с сервисом: ${st.p2pError ?: "подключаюсь…"}\n\n")
+            if (st.localUrls.isNotEmpty()) {
+                sb.append(if (st.p2pUrl != null) "Рядом и без интернета, в твоей Wi-Fi сети:\n" else "Ссылка работает в твоей Wi-Fi сети или на твоей точке доступа.\n")
+                if (st.p2pUrl != null) st.localUrls.forEach { sb.append("$it\n") }
+            } else if (st.p2pUrl == null) sb.append("Нет Wi-Fi сети: подключись к Wi-Fi или включи точку доступа.\n")
         }
-        tvStatus.text = sb.toString()
-        renderRequests(if (on) s.requests else emptyList())
-    }
-
-    private fun px(v: Int) = (v * resources.displayMetrics.density).toInt()
-
-    private fun shape(fill: Int, radius: Int): Drawable = GradientDrawable().apply {
-        setColor(fill); cornerRadius = px(radius).toFloat()
-    }
-
-    /** Кнопка слегка сжимается при нажатии. */
-    @SuppressLint("ClickableViewAccessibility")
-    private fun pressable(v: View) = v.setOnTouchListener { _, e ->
-        val k = when (e.actionMasked) { MotionEvent.ACTION_DOWN -> 0.96f; MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> 1f; else -> return@setOnTouchListener false }
-        v.animate().scaleX(k).scaleY(k).setDuration(70).start()
-        false
+        tvStatus.text = sb.toString().trim()
+        tvStatus.visibility = if (sb.isEmpty()) View.GONE else View.VISIBLE
+        renderRequests(if (on) st.requests else emptyList())
+        renderUpdate(Updater.available)
     }
 
     private fun buildUi(): View {
-        window.statusBarColor = BG
-        window.navigationBarColor = BG
-        val display = Typeface.create("sans-serif-black", Typeface.NORMAL)
-        val medium = Typeface.create("sans-serif-medium", Typeface.NORMAL)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(px(22), px(20), px(22), px(28))
+            setPadding(px(22), px(14), px(22), px(28))
         }
-        fun text(t: String, size: Float, color: Int = MILK, face: Typeface = medium) = TextView(this).apply {
-            text = t; textSize = size; setTextColor(color); typeface = face; includeFontPadding = false
-        }
-        fun field(hint: String) = EditText(this).apply {
-            this.hint = hint; setSingleLine(); textSize = 16f; typeface = medium
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-            setTextColor(MILK); setHintTextColor(DIM)
-            background = shape(PANEL, 16)
-            setPadding(px(16), px(14), px(16), px(14))
-        }
-        fun button(fill: Int, ink: Int, size: Float) = Button(this).apply {
-            isAllCaps = false; textSize = size; typeface = Typeface.DEFAULT_BOLD; setTextColor(ink)
-            stateListAnimator = null; background = shape(fill, 99)
-            setPadding(px(20), px(17), px(20), px(17))
-            pressable(this)
-        }
-        fun wide(top: Int = 0) = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = px(top) }
-        fun wrap(top: Int = 0, center: Boolean = false) = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = px(top); if (center) gravity = Gravity.CENTER_HORIZONTAL }
 
-        // шапка: марка слева, статус эфира справа
+        // шапка: марка, статус эфира, настройки
         val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        head.addView(text("WaveCast", 15f, MILK, display), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        tvLive = text("не в эфире", 13f, DIM, Typeface.DEFAULT_BOLD).apply { setPadding(px(12), px(7), px(12), px(7)); background = shape(PANEL, 99) }
+        head.addView(label("WaveCast", 15f, Ui.MILK, Ui.display), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        tvLive = label("не в эфире", 13f, Ui.DIM, Typeface.DEFAULT_BOLD).apply {
+            setPadding(px(12), px(7), px(12), px(7)); background = shape(Ui.PANEL, 99)
+        }
         head.addView(tvLive)
+        head.addView(ImageView(this).apply {
+            setImageResource(R.drawable.ic_settings)
+            contentDescription = "Настройки"
+            setPadding(px(10), px(10), px(4), px(10))
+            setOnClickListener { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
+        }, LinearLayout.LayoutParams(px(48), px(48)).apply { marginStart = px(6) })
         root.addView(head, wide())
 
-        root.addView(text("Твоё радио", 42f, MILK, display).apply { letterSpacing = -0.04f }, wide(top = 26))
+        // плашка «вышло обновление»
+        updCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; visibility = View.GONE
+            background = shape(Ui.PANEL, 20); setPadding(px(16), px(14), px(16), px(14))
+        }
+        updTitle = label("", 17f, Ui.MILK, Typeface.DEFAULT_BOLD)
+        updNotes = label("", 14f, Ui.DIM).apply { maxLines = 3; setPadding(0, px(6), 0, 0) }
+        updBtn = pill(Ui.LILAC, Ui.INK, 15f).apply { setPadding(0, px(12), 0, px(12)) }
+        updCard.addView(updTitle); updCard.addView(updNotes); updCard.addView(updBtn, wide(12))
+        root.addView(updCard, wide(16))
 
-        tvCount = text("0", 72f, LILAC, display).apply { visibility = View.GONE }
-        root.addView(tvCount, wide(top = 14))
-        tvCountLabel = text("слушают сейчас", 16f, DIM).apply { visibility = View.GONE }
+        root.addView(label("Твоё радио", 42f, Ui.MILK, Ui.display).apply { letterSpacing = -0.04f }, wide(28))
+        tvRoom = label("", 16f, Ui.DIM).apply {
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+            setOnClickListener { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
+        }
+        root.addView(tvRoom, wide(10))
+
+        tvCount = label("0", 72f, Ui.LILAC, Ui.display).apply { visibility = View.GONE }
+        root.addView(tvCount, wide(14))
+        tvCountLabel = label("слушают сейчас", 16f, Ui.DIM).apply { visibility = View.GONE }
         root.addView(tvCountLabel, wide())
 
-        lblService = text("Адрес сервиса", 13f, DIM)
-        root.addView(lblService, wide(top = 22))
-        etService = field("wavecast.твой-аккаунт.workers.dev")
-        root.addView(etService, wide(top = 6))
-        lblRoom = text("Название эфира", 13f, DIM)
-        root.addView(lblRoom, wide(top = 14))
-        etRoom = field("party")
-        root.addView(etRoom, wide(top = 6))
+        btn = pill(Ui.LILAC, Ui.INK, 20f)
+        root.addView(btn, wide(28))
+        tvHint = label("Включай музыку в любом приложении — друзья услышат то же, что и ты", 15f, Ui.DIM).apply {
+            setLineSpacing(px(3).toFloat(), 1f)
+        }
+        root.addView(tvHint, wide(16))
 
-        btn = button(LILAC, INK, 20f)
-        root.addView(btn, wide(top = 24))
-
-        // кто просится в эфир — сразу под счётчиком, это главное во время эфира
+        // кто просится в эфир — сразу под кнопкой, это главное во время эфира
         reqBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        root.addView(reqBox, wide(top = 6))
-
-        swAuto = Switch(this).apply {
-            text = "Пускать всех без вопросов"; textSize = 15f; setTextColor(MILK); typeface = medium
-            thumbTintList = android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(LILAC, DIM))
-            trackTintList = android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(LILAC, PANEL))
-            setPadding(0, px(8), 0, px(8))
-        }
-        root.addView(swAuto, wide(top = 14))
-
-        swMute = Switch(this).apply {
-            text = "Не транслировать мессенджеры"; textSize = 15f; setTextColor(MILK); typeface = medium
-            thumbTintList = swAuto.thumbTintList; trackTintList = swAuto.trackTintList
-            setPadding(0, px(8), 0, px(8))
-        }
-        root.addView(swMute, wide(top = 2))
-        root.addView(text("Голосовые и звук Telegram, WhatsApp, Viber и других мессенджеров не попадут в эфир", 13f, DIM), wide())
+        root.addView(reqBox, wide(6))
 
         // QR на светлой карточке
         ivQr = ImageView(this)
         qrCard = FrameLayout(this).apply {
-            background = shape(MILK, 24); visibility = View.GONE
+            background = shape(Ui.MILK, 24); visibility = View.GONE
             setPadding(px(16), px(16), px(16), px(16))
             addView(ivQr, FrameLayout.LayoutParams(px(200), px(200)))
         }
-        root.addView(qrCard, wrap(top = 26, center = true))
-        tvLink = text("", 15f, LILAC, Typeface.DEFAULT_BOLD).apply {
+        root.addView(qrCard, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            .apply { topMargin = px(26); gravity = Gravity.CENTER_HORIZONTAL })
+        tvLink = label("", 15f, Ui.LILAC, Typeface.DEFAULT_BOLD).apply {
             gravity = Gravity.CENTER; visibility = View.GONE; setPadding(0, px(8), 0, px(8))
             // ссылка всегда в одну строку: шрифт уменьшается до 10sp, дальше — многоточие в середине
             maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
             setAutoSizeTextTypeUniformWithConfiguration(10, 15, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
         }
-        root.addView(tvLink, wide(top = 14))
-        btnShare = button(PANEL, MILK, 16f).apply { text = "Позвать друзей"; visibility = View.GONE }
-        root.addView(btnShare, wide(top = 8))
+        root.addView(tvLink, wide(14))
+        btnShare = pill(Ui.PANEL, Ui.MILK, 16f).apply { text = "Позвать друзей"; visibility = View.GONE }
+        root.addView(btnShare, wide(8))
 
-        tvStatus = text("", 15f, DIM).apply { setLineSpacing(px(3).toFloat(), 1f) }
-        root.addView(tvStatus, wide(top = 22))
+        tvStatus = label("", 15f, Ui.DIM).apply { setLineSpacing(px(3).toFloat(), 1f); visibility = View.GONE }
+        root.addView(tvStatus, wide(22))
 
-        return ScrollView(this).apply { setBackgroundColor(BG); isFillViewport = true; addView(root) }
+        return ScrollView(this).apply { setBackgroundColor(Ui.BG); isFillViewport = true; addView(root) }
     }
 
     private fun renderRequests(list: List<CaptureService.Request>) {
@@ -304,38 +266,32 @@ class MainActivity : Activity() {
         for (r in list) {
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                background = shape(PANEL, 20)
+                background = shape(Ui.PANEL, 20)
                 setPadding(px(16), px(14), px(16), px(14))
             }
-            card.addView(TextView(this).apply {
-                text = "${r.name} хочет подключиться"; textSize = 17f; setTextColor(MILK); typeface = Typeface.DEFAULT_BOLD
-            })
-            card.addView(TextView(this).apply {
-                text = if (r.viaWifi) "Из твоей Wi-Fi сети" else "По ссылке на эфир"; textSize = 14f; setTextColor(DIM)
-            })
+            card.addView(label("${r.name} хочет подключиться", 17f, Ui.MILK, Typeface.DEFAULT_BOLD))
+            card.addView(label(if (r.viaWifi) "Из твоей Wi-Fi сети" else "По ссылке на эфир", 14f, Ui.DIM).apply { setPadding(0, px(4), 0, 0) })
             val row = LinearLayout(this).apply { setPadding(0, px(12), 0, 0) }
-            fun choice(label: String, allow: Boolean, fill: Int, ink: Int) = Button(this).apply {
-                text = label; isAllCaps = false; textSize = 15f; typeface = Typeface.DEFAULT_BOLD; setTextColor(ink)
-                stateListAnimator = null; background = shape(fill, 99); setPadding(0, px(12), 0, px(12))
-                pressable(this)
+            fun choice(t: String, allow: Boolean, fill: Int, ink: Int) = pill(fill, ink, 15f).apply {
+                text = t; setPadding(0, px(12), 0, px(12))
                 setOnClickListener {
                     startService(Intent(this@MainActivity, CaptureService::class.java)
                         .setAction(CaptureService.ACTION_DECIDE)
                         .putExtra(CaptureService.EXTRA_REQ, r.key).putExtra(CaptureService.EXTRA_ALLOW, allow))
                 }
             }
-            row.addView(choice("Пустить", true, LILAC, INK), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            row.addView(choice("Пустить", true, Ui.LILAC, Ui.INK), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             row.addView(View(this), LinearLayout.LayoutParams(px(10), 1))
-            row.addView(choice("Отклонить", false, BG, MILK), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            row.addView(choice("Отклонить", false, Ui.BG, Ui.MILK), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             card.addView(row)
-            reqBox.addView(card, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = px(10) })
+            reqBox.addView(card, wide(10))
         }
     }
 
     private fun qr(text: String): Bitmap {
         val n = 480
         val m = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, n, n)
-        val px = IntArray(n * n) { if (m.get(it % n, it / n)) INK else MILK }
+        val px = IntArray(n * n) { if (m.get(it % n, it / n)) Ui.INK else Ui.MILK }
         return Bitmap.createBitmap(px, n, n, Bitmap.Config.RGB_565)
     }
 
@@ -352,27 +308,10 @@ class MainActivity : Activity() {
         toast("Ссылка скопирована")
     }
 
-    private fun toast(t: String) = Toast.makeText(this, t, Toast.LENGTH_SHORT).show()
+    private fun toast(t: String) = Toast.makeText(this, t, Toast.LENGTH_LONG).show()
 
     companion object {
         private const val REQ_PERMS = 1
         private const val REQ_PROJECTION = 2
-        private val BG = Color.parseColor("#191627")
-        private val INK = Color.parseColor("#0F0D1A")
-        private val LILAC = Color.parseColor("#BFB0F5")
-        private val CORAL = Color.parseColor("#F0A08C")
-        private val MILK = Color.parseColor("#EFEAE2")
-        private val PANEL = Color.parseColor("#2A2640")
-        private val DIM = Color.parseColor("#9C96B0")
-        /** Сигнальный сервис по умолчанию — чтобы эфир по ссылке работал без настройки. */
-        const val DEFAULT_SERVICE = "wavecast.smokedev13.workers.dev"
-        private val ROOM_RE = Regex("^[a-z0-9][a-z0-9_-]{0,47}$")
-        private const val ROOM_CHARS = "abcdefghjkmnpqrstuvwxyz23456789"
-        private const val KEY_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-        private fun random(chars: String, n: Int): String {
-            val r = SecureRandom()
-            return (1..n).map { chars[r.nextInt(chars.length)] }.joinToString("")
-        }
     }
 }
