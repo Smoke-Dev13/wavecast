@@ -12,11 +12,12 @@
 
 ## Быстрый старт
 
-**1. Сигнальный сервис** — один раз, бесплатный тариф Cloudflare (откроется браузер для входа):
-```bash
-git clone https://github.com/Smoke-Dev13/wavecast && cd wavecast/p2p/worker && npm i && npx wrangler deploy
-```
-В конце будет адрес вида `https://wavecast.<аккаунт>.workers.dev`.
+**1. Сигнальный сервис** — один раз, бесплатный Cloudflare, только мышкой:
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Smoke-Dev13/wavecast/tree/main/p2p/worker)
+
+Войди в Cloudflare, нажми **Create and deploy** — через минуту будет адрес вида `https://wavecast.<аккаунт>.workers.dev`.
+Или из терминала: `cd p2p/worker && npm i && npx wrangler deploy`.
 
 **2. Телефон:** APK из [Releases](../../releases/latest) → вставь адрес сервиса → «В эфир» → покажи QR или нажми «Поделиться ссылкой».
 
