@@ -1,8 +1,8 @@
 {
-  "versionCode": 13,
-  "versionName": "0.8.0",
-  "url": "wavecast.apk?v=13",
-  "sha256": "b8adb253d6d0d25c85783e70812f561f2de3f9bf19b306ee1bb120b4cbc38d79",
+  "versionCode": 14,
+  "versionName": "0.8.1",
+  "url": "wavecast.apk?v=14",
+  "sha256": "a1f67a2b6d219772e38421ee32d0cc811a33449b3573091f032d3cc3ac8c6988",
   "size": 1131570,
-  "notes": "Новый дизайн: круглая кнопка эфира, фирменный шрифт, настройки по группам"
+  "notes": "Кнопки «Поделиться» и «Копировать» больше не обрезаются"
 }

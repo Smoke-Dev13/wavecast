@@ -251,29 +251,35 @@ class MainActivity : Activity() {
         }
         root.addView(tvHint, wide())
 
-        // карточка «Позови друзей»: QR + ссылка + кнопки
+        // карточка «Позови друзей»: сверху QR и ссылка, снизу две кнопки поровну на всю ширину
         shareCard = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL; visibility = View.GONE
+            orientation = LinearLayout.VERTICAL; visibility = View.GONE
             background = shape(Ui.PANEL, 22); setPadding(px(14), px(14), px(14), px(14))
         }
+        val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         ivQr = ImageView(this).apply {
             background = shape(Ui.MILK, 14); setPadding(px(7), px(7), px(7), px(7))
             contentDescription = "QR-код эфира, нажми, чтобы увеличить"
         }
-        shareCard.addView(ivQr, LinearLayout.LayoutParams(px(100), px(100)))
+        top.addView(ivQr, LinearLayout.LayoutParams(px(88), px(88)))
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(px(14), 0, 0, 0) }
-        col.addView(label("Позови друзей", 15f, Ui.MILK, Ui.bold))
+        col.addView(label("Позови друзей", 16f, Ui.MILK, Ui.bold))
         tvLink = label("", 13f, Ui.LILAC, Ui.bold).apply {
-            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.MIDDLE; setPadding(0, px(6), 0, px(10))
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.MIDDLE; setPadding(0, px(6), 0, px(6))
             setOnClickListener { copyLink() }
         }
         col.addView(tvLink, wide())
-        val mini = LinearLayout(this)
-        mini.addView(chipButton("Поделиться", Ui.BG, Ui.MILK).apply { setOnClickListener { share() } })
-        mini.addView(chipButton("Копировать", Ui.BG, Ui.MILK).apply { setOnClickListener { copyLink() } },
-            LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = px(8) })
-        col.addView(mini)
-        shareCard.addView(col, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        col.addView(label("Нажми на QR, чтобы показать его крупно", 12f, Ui.DIM).apply { maxLines = 2 })
+        top.addView(col, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        shareCard.addView(top)
+        val row = LinearLayout(this)
+        fun half(t: String, start: Int, onClick: () -> Unit) = row.addView(chipButton(t, Ui.BG, Ui.MILK).apply {
+            maxLines = 1; setPadding(px(8), px(12), px(8), px(12))
+            setOnClickListener { onClick() }
+        }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = px(start) })
+        half("Поделиться", 0) { share() }
+        half("Копировать", 8) { copyLink() }
+        shareCard.addView(row, wide(12))
         root.addView(shareCard, wide())
 
         tvStatus = label("", 13f, Ui.DIM).apply { setLineSpacing(px(2).toFloat(), 1f); visibility = View.GONE; gravity = Gravity.CENTER }
