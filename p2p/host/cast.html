@@ -9,13 +9,21 @@
 // в аудиодорожку и раздаёт слушателям напрямую по WebRTC (Opus кодирует сам движок).
 //
 // Параметры в #hash: signal=wss://host  room=<комната>  key=<ключ ведущего>
-//                    src=ws://...  max=<слушателей>  bitrate=<бит/с>
+//                    src=ws://...  max=<слушателей>  bitrate=<бит/с>  auto=1 (пускать всех без вопросов)
+//
+// Запросы на вход: слушатель шлёт join с именем и id устройства (cid). Если cid ещё не пускали,
+// приложение получает WaveCastHost.onRequest(id, name) и отвечает вызовом wcDecide(id, true|false).
+// Пущенные и отклонённые cid запоминаются до конца эфира, повторно не спрашиваем.
 (() => {
   const P = new URLSearchParams(location.hash.slice(1));
   const signal = (P.get('signal') || '').replace(/^http/, 'ws').replace(/\/+$/, '');
   const room = P.get('room') || '', key = P.get('key') || '';
   const srcUrl = P.get('src') || `ws://${location.host}/ws`;
   const MAX = +(P.get('max') || 30), BITRATE = +(P.get('bitrate') || 128000);
+  const MAX_PENDING = 5;
+  let auto = P.get('auto') === '1';
+  const allowed = new Set(), denied = new Set();
+  const pending = new Map();   // id слушателя → {name, cid}
   const RATE = 48000, CH = 2;
 
   const peers = new Map();   // id слушателя → RTCPeerConnection
@@ -23,7 +31,7 @@
 
   const connected = () => [...peers.values()].filter(p => p.connectionState === 'connected').length;
   function report() {
-    const s = { signal: sigUp, listeners: connected(), pending: peers.size - connected(), error };
+    const s = { signal: sigUp, listeners: connected(), pending: peers.size - connected(), requests: pending.size, error };
     document.getElementById('log').textContent = JSON.stringify(s);
     try { window.WaveCastHost && window.WaveCastHost.onState(JSON.stringify(s)); } catch {}
     const st = JSON.stringify({ type: 'status', live: true, listeners: s.listeners });
@@ -116,13 +124,44 @@
     const p = peers.get(d.from);
     switch (d.type) {
       case 'hello': ice = d.iceServers || []; break;
-      case 'join': await offer(d.from); break;
+      case 'join': await onJoin(d); break;
       case 'answer': if (p && p.signalingState === 'have-local-offer') await p.setRemoteDescription({ type: 'answer', sdp: musicSdp(d.sdp) }); break;
       case 'ice': if (p && d.candidate) await p.addIceCandidate(d.candidate).catch(() => {}); break;
-      case 'leave': close(d.from); report(); break;
+      case 'leave':
+        close(d.from);
+        if (pending.delete(d.from)) bridge('onRequestGone', d.from);
+        report(); break;
       case 'error': fatal = true; error = d.message || d.code; report(); break;
     }
   }
+
+  const bridge = (fn, ...a) => { try { window.WaveCastHost && window.WaveCastHost[fn](...a); } catch {} };
+
+  async function onJoin(d) {
+    const id = d.from, cid = d.cid || id, name = (d.name || 'Гость').slice(0, 24);
+    if (auto || allowed.has(cid)) return offer(id);
+    if (denied.has(cid)) return send({ to: id, type: 'denied' });
+    if (pending.has(id)) return send({ to: id, type: 'waiting' });
+    if (pending.size >= MAX_PENDING) return send({ to: id, type: 'busy' });
+    pending.set(id, { name, cid });
+    send({ to: id, type: 'waiting' });
+    bridge('onRequest', id, name);
+    report();
+  }
+
+  // вызывает приложение, когда ведущий нажал «Пустить» или «Отклонить»
+  window.wcDecide = (id, allow) => {
+    const r = pending.get(id);
+    if (!r) return;
+    pending.delete(id);
+    (allow ? allowed : denied).add(r.cid);
+    if (allow) offer(id); else send({ to: id, type: 'denied' });
+    report();
+  };
+  window.wcAuto = on => {
+    auto = !!on;
+    if (auto) for (const id of [...pending.keys()]) window.wcDecide(id, true);
+  };
 
   function connect() {
     sig = new WebSocket(`${signal}/signal/${encodeURIComponent(room)}?role=host&key=${encodeURIComponent(key)}`);

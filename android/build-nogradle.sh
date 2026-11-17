@@ -5,6 +5,7 @@
 # Основной способ сборки — Gradle (см. README); этот нужен там, где SDK недоступен.
 set -euo pipefail
 cd "$(dirname "$0")"
+export WAVECAST_STORE_PASSWORD
 : "${KOTLINC:=kotlinc}" "${ANDROID_JAR:?укажи путь к android.jar (API 34)}"
 KOTLIN_STDLIB="${KOTLIN_STDLIB:-$(dirname "$(readlink -f "$(command -v "$KOTLINC")")")/../lib/kotlin-stdlib.jar}"
 ZXING=/usr/share/java/core.jar
@@ -30,7 +31,14 @@ dalvik-exchange --dex --min-sdk-version=29 --output="$B/dex/classes.dex" "$B/cla
 
 (cd "$B/dex" && zip -qj ../base.apk classes.dex)
 zipalign -f 4 "$B/base.apk" "$B/aligned.apk"
-apksigner sign --ks app/wavecast.keystore --ks-pass pass:wavecast --key-pass pass:wavecast --ks-key-alias wavecast \
+# ключ: android/keystore.properties или переменные WAVECAST_KEYSTORE / WAVECAST_STORE_PASSWORD / WAVECAST_KEY_ALIAS
+if [ -f keystore.properties ]; then
+  prop() { grep -m1 "^$1=" keystore.properties | cut -d= -f2-; }
+  WAVECAST_KEYSTORE=${WAVECAST_KEYSTORE:-$(prop storeFile)}; WAVECAST_STORE_PASSWORD=${WAVECAST_STORE_PASSWORD:-$(prop storePassword)}
+  WAVECAST_KEY_ALIAS=${WAVECAST_KEY_ALIAS:-$(prop keyAlias)}
+fi
+: "${WAVECAST_KEYSTORE:?нет ключа подписи: создай android/keystore.properties (см. README)}"
+apksigner sign --ks "$WAVECAST_KEYSTORE" --ks-pass env:WAVECAST_STORE_PASSWORD --ks-key-alias "${WAVECAST_KEY_ALIAS:-wavecast}" \
   --out "wavecast-$VN.apk" "$B/aligned.apk"
 apksigner verify --print-certs "wavecast-$VN.apk" | head -1
 echo "готово: $(pwd)/wavecast-$VN.apk"

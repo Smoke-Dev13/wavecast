@@ -30,14 +30,28 @@ interface Sink {
  *   GET /cast.html  страница P2P-ведущего
  *   GET /status  JSON
  *   WS  /ws      поток PCM
+ *
+ * Запросы на вход: слушатель шлёт {"type":"join","name","cid"}. Звук получают только одобренные.
+ * Неодобренному отвечаем waiting и зовём onRequest; решение — decide(). Пущенные и отклонённые cid
+ * помним до конца эфира. Служебное подключение P2P-страницы (127.0.0.1 + токен) пускается сразу.
  */
 class LocalServer(
     private val port: Int,
     private val assets: AssetManager,
     private val onListeners: (Int) -> Unit,
+    private val onRequest: (id: String, name: String) -> Unit = { _, _ -> },
+    private val onRequestGone: (id: String) -> Unit = {},
 ) : Sink {
 
+    /** Токен для служебного подключения P2P-страницы. */
+    val internalToken: String = java.util.UUID.randomUUID().toString().replace("-", "")
+    @Volatile var autoAllow = false
+        set(v) { field = v; if (v) clients.filter { it.pendingName != null }.forEach { decide(it.id, true) } }
+
     private val clients = ConcurrentHashMap.newKeySet<Client>()
+    private val allowed = ConcurrentHashMap.newKeySet<String>()
+    private val denied = ConcurrentHashMap.newKeySet<String>()
+    private val nextId = java.util.concurrent.atomic.AtomicInteger()
     @Volatile private var formatMsg: String? = null
     @Volatile private var running = true
     private val server = ServerSocket().apply { reuseAddress = true; bind(InetSocketAddress(port)) }
@@ -52,7 +66,7 @@ class LocalServer(
     }
 
     /** Слушатели без служебного подключения P2P-страницы (оно приходит с 127.0.0.1). */
-    val count: Int get() = clients.count { !it.internal }
+    val count: Int get() = clients.count { !it.internal && it.approved }
 
     override fun format(json: String) {
         formatMsg = json
@@ -60,7 +74,38 @@ class LocalServer(
     }
 
     override fun audio(chunk: ByteArray) {
-        clients.forEach { it.binary(chunk) }
+        clients.forEach { if (it.approved) it.binary(chunk) }
+    }
+
+    /** Ответ ведущего на запрос; id — тот, что пришёл в onRequest. */
+    fun decide(id: String, allow: Boolean) {
+        val c = clients.firstOrNull { it.id == id && it.pendingName != null } ?: return
+        c.pendingName = null
+        (if (allow) allowed else denied).add(c.cid)
+        if (allow) approve(c) else { c.text("""{"type":"denied"}""") }
+        onRequestGone(id)
+    }
+
+    private fun approve(c: Client) {
+        c.approved = true
+        c.text("""{"type":"approved"}""")
+        formatMsg?.let { c.text(it) }
+        broadcastStatus()
+    }
+
+    private fun onJoin(c: Client, json: String) {
+        if (c.approved || c.internal) return
+        val o = runCatching { org.json.JSONObject(json) }.getOrNull() ?: return
+        if (o.optString("type") != "join") return
+        val name = o.optString("name").filter { it >= ' ' && it != '<' && it != '>' }.trim().take(24).ifEmpty { "Гость" }
+        c.cid = o.optString("cid").filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(32).ifEmpty { c.id }
+        when {
+            autoAllow || c.cid in allowed -> approve(c)
+            c.cid in denied -> c.text("""{"type":"denied"}""")
+            c.pendingName != null -> c.text("""{"type":"waiting"}""")
+            clients.count { it.pendingName != null } >= MAX_PENDING -> c.text("""{"type":"busy"}""")
+            else -> { c.pendingName = name; c.text("""{"type":"waiting"}"""); onRequest(c.id, name) }
+        }
     }
 
     override fun close() {
@@ -90,11 +135,14 @@ class LocalServer(
                 val i = l.indexOf(':')
                 if (i > 0) headers[l.substring(0, i).trim().lowercase()] = l.substring(i + 1).trim()
             }
-            val path = reqLine.split(" ").getOrNull(1)?.substringBefore('?') ?: "/"
+            val target = reqLine.split(" ").getOrNull(1) ?: "/"
+            val path = target.substringBefore('?')
+            val token = Regex("[?&]t=([A-Za-z0-9]+)").find(target)?.groupValues?.get(1)
             val out = sock.getOutputStream()
             val wsKey = headers["sec-websocket-key"]
             when {
-                path == "/ws" && wsKey != null -> upgrade(sock, input, out, wsKey)
+                path == "/ws" && wsKey != null -> upgrade(sock, input, out, wsKey,
+                    sock.inetAddress.isLoopbackAddress && token == internalToken)
                 path == "/" || path == "/index.html" -> {
                     val body = assets.open("index.html").use { it.readBytes() }
                     respond(out, "200 OK", "text/html; charset=utf-8", body); sock.close()
@@ -121,18 +169,18 @@ class LocalServer(
         out.flush()
     }
 
-    private fun upgrade(sock: Socket, input: InputStream, out: OutputStream, key: String) {
+    private fun upgrade(sock: Socket, input: InputStream, out: OutputStream, key: String, internal: Boolean) {
         val accept = Base64.getEncoder().encodeToString(
             MessageDigest.getInstance("SHA-1").digest((key + WS_GUID).toByteArray())
         )
         out.write(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n" +
                 "Sec-WebSocket-Accept: $accept\r\n\r\n").toByteArray())
         out.flush()
-        val c = Client(sock, out, sock.inetAddress.isLoopbackAddress)
+        val c = Client(sock, out, internal, "w" + nextId.incrementAndGet())
+        c.approved = internal
         clients.add(c)
         c.text(statusJson())
-        formatMsg?.let { c.text(it) }
-        broadcastStatus()
+        if (internal) formatMsg?.let { c.text(it) }
         try {
             // Читаем входящие кадры только чтобы поймать close/ping
             while (running) {
@@ -147,6 +195,7 @@ class LocalServer(
                 val payload = ByteArray(len.toInt()).also { readFully(input, it) }
                 if (mask != null) for (i in payload.indices) payload[i] = (payload[i].toInt() xor mask[i % 4].toInt()).toByte()
                 when (opcode) {
+                    0x1 -> onJoin(c, String(payload, Charsets.UTF_8))
                     0x8 -> break
                     0x9 -> c.frame(0xA, payload)
                 }
@@ -155,11 +204,15 @@ class LocalServer(
         } finally {
             c.shutdown()
             clients.remove(c)
-            if (running) broadcastStatus()
+            if (c.pendingName != null) { c.pendingName = null; onRequestGone(c.id) }
+            if (running && c.approved) broadcastStatus()
         }
     }
 
-    private class Client(private val sock: Socket, private val out: OutputStream, val internal: Boolean) {
+    private class Client(private val sock: Socket, private val out: OutputStream, val internal: Boolean, val id: String) {
+        @Volatile var approved = false
+        @Volatile var pendingName: String? = null
+        @Volatile var cid: String = id
         private val q = LinkedBlockingQueue<Pair<Int, ByteArray>>()
         @Volatile private var alive = true
         private val writer = thread(name = "wc-write", isDaemon = true) {
@@ -206,6 +259,7 @@ class LocalServer(
         private const val TAG = "WaveCast"
         private const val WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
         private const val MAX_QUEUE = 40
+        private const val MAX_PENDING = 5
 
         private fun readLine(input: InputStream): String? {
             val sb = StringBuilder()

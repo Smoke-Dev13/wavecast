@@ -38,6 +38,7 @@
          transition: transform .08s, box-shadow .08s, background .15s; -webkit-tap-highlight-color: transparent; }
   #btn:active { transform: scale(.96); }
   #btn:focus-visible, .sticker:focus-visible, input:focus-visible { outline: 2px solid var(--milk); outline-offset: 4px; }
+  .who input:focus-visible { outline-offset: 2px; }
   #btn svg { width: 42%; height: 42%; }
   #btn .stop { display: none; }
   #btn.on { background: var(--milk); }
@@ -51,6 +52,11 @@
   .now .t { font: 800 16px/1.2 var(--display); letter-spacing: -.02em; overflow-wrap: anywhere; } .now .a { color: var(--dim); }
   .dj { display: none; margin: 0 0 18px; padding: 12px 14px; background: var(--mint); color: var(--milk);
         border-radius: 18px 18px 18px 4px; }
+  .who { display: flex; flex-direction: column; gap: 6px; margin: 0 0 18px; }
+  .who label { font-size: 14px; color: var(--dim); }
+  .who input { font: 600 17px/1.2 var(--body); color: var(--milk); background: var(--mint); border: 0; border-radius: 14px;
+         padding: 14px 16px; width: 100%; }
+  .who input::placeholder { color: var(--dim); font-weight: 400; }
   .vol { display: flex; align-items: center; gap: 12px; }
   .vol svg { width: 22px; height: 22px; flex: none; color: var(--dim); }
   input[type=range] { -webkit-appearance: none; appearance: none; flex: 1; height: 6px; border-radius: 99px; margin: 0;
@@ -85,6 +91,10 @@
     </button>
   </div>
   <p id="hint">Жми и слушай</p>
+  <div class="who" id="who">
+    <label for="name">Как тебя зовут? Ведущий увидит имя в запросе</label>
+    <input id="name" maxlength="24" autocomplete="nickname" placeholder="Например, Аня">
+  </div>
   <div class="now" id="now"><img id="cover" alt=""><a id="tlink" target="_blank" rel="noopener"><div class="t" id="title"></div><div class="a" id="artist"></div></a></div>
   <div class="dj" id="dj"></div>
   <label class="vol">
@@ -112,6 +122,13 @@
   let ws, ctx, gain, analyser, bins, dec, playing = false, live = false, codec = 'pcm', wantOpus = false;
   let fmt = { rate: 48000, channels: 2 }, ts = 0;
   let nextTime = 0, underruns = 0, target = 0.25, retry = 500;
+  // Запрос на вход: телефон ведущего отвечает waiting / approved / denied. Relay-сервер их не шлёт — там пускают всех.
+  let asked = false, waiting = false;
+  const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch {} return null; };
+  let cid = store('wc-cid');
+  if (!cid) { cid = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(36).padStart(2, '0')).join('').slice(0, 20); store('wc-cid', cid); }
+  $('name').value = store('wc-name') || '';
+  const join = () => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'join', name: $('name').value.trim().slice(0, 24) || 'Гость', cid })); };
 
   // Живое кольцо вокруг кнопки: спектр звука в полярных координатах
   function ring(cv, getData) {
@@ -149,7 +166,7 @@
   function ui() {
     $('btn').className = playing ? 'on' : '';
     $('btn').setAttribute('aria-label', playing ? 'Остановить' : 'Слушать');
-    $('hint').textContent = !playing ? 'Жми и слушай' : live ? 'Звук идёт' : 'Жду эфир — заиграет само';
+    $('hint').textContent = !playing ? 'Жми и слушай' : waiting ? 'Запрос отправлен' : live ? 'Звук идёт' : 'Жду эфир — заиграет само';
   }
 
   async function opusSupported() {
@@ -161,7 +178,7 @@
     codec = wantOpus ? 'opus' : 'pcm';
     ws = new WebSocket(base + '?codec=' + codec);
     ws.binaryType = 'arraybuffer';
-    ws.onopen = () => { retry = 500; setState('На связи, жду эфир'); };
+    ws.onopen = () => { retry = 500; setState('На связи, жду эфир'); if (asked) join(); };
     ws.onclose = () => { live = false; $('pill').className = 'pill'; $('cnt').textContent = 'не в эфире'; setState('Нет связи, переподключаюсь…'); ui(); setTimeout(connect, retry); retry = Math.min(retry * 2, 8000); };
     ws.onmessage = ev => typeof ev.data === 'string' ? onText(JSON.parse(ev.data)) : onAudio(ev.data);
   }
@@ -177,7 +194,7 @@
         live = m.live;
         $('pill').className = 'pill' + (live ? ' live' : '');
         $('cnt').textContent = live ? plural(m.listeners) : 'не в эфире';
-        setState(live ? (playing ? 'Ты в эфире' : 'Эфир идёт') : 'Эфир ещё не начался. Страница сама подключится.');
+        if (!waiting) setState(live ? (playing ? 'Ты в эфире' : 'Эфир идёт') : 'Эфир ещё не начался. Страница сама подключится.');
         if (!live) $('now').style.display = 'none';
         ui();
         break;
@@ -191,6 +208,20 @@
       case 'dj':
         $('dj').textContent = m.text; $('dj').style.display = 'block';
         clearTimeout(onText.djt); onText.djt = setTimeout(() => $('dj').style.display = 'none', 20000);
+        break;
+      case 'waiting':
+        waiting = true; setState('Ждём, пока ведущий пустит…'); ui();
+        break;
+      case 'approved':
+        waiting = false; $('who').style.display = 'none'; setState(playing ? 'Ты в эфире' : 'Эфир идёт'); ui();
+        break;
+      case 'denied':
+        waiting = false; asked = false; playing = false; if (ctx) ctx.suspend();
+        $('who').style.display = ''; setState('Ведущий не пустил в эфир', true); ui();
+        break;
+      case 'busy':
+        waiting = false; asked = false; playing = false; if (ctx) ctx.suspend();
+        setState('У ведущего сейчас много запросов. Попробуй через минуту.', true); ui();
         break;
       case 'error':
         setState(m.message, true); retry = 30000;
@@ -256,9 +287,12 @@
       gain.connect(analyser); analyser.connect(ctx.destination);
       gain.gain.value = +$('vol').value;
     }
-    if (!playing) { await ctx.resume(); playing = true; nextTime = 0; }
+    if (!playing) {
+      await ctx.resume(); playing = true; nextTime = 0;
+      if (!asked) { asked = true; store('wc-name', $('name').value.trim()); join(); }
+    }
     else { playing = false; await ctx.suspend(); }
-    if (live) setState(playing ? 'Ты в эфире' : 'Эфир идёт');
+    if (live && !waiting) setState(playing ? 'Ты в эфире' : 'Эфир идёт');
     ui();
   };
   $('vol').oninput = e => { if (gain) gain.gain.value = +e.target.value; };
@@ -269,6 +303,7 @@
     try { await navigator.clipboard.writeText(url); $('share').textContent = 'Ссылка скопирована'; setTimeout(() => $('share').textContent = 'Позвать друзей', 2000); } catch { prompt('Ссылка:', url); }
   };
 
+  $('name').onkeydown = e => { if (e.key === 'Enter') $('btn').click(); };
   opusSupported().then(ok => { wantOpus = ok; connect(); });
 })();
 </script>

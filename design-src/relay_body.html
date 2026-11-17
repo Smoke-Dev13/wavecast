@@ -1,0 +1,208 @@
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="brand">WaveCast</span>
+    <span class="pill" id="pill"><i></i><span id="cnt">не в эфире</span></span>
+  </header>
+  <h1 id="room">эфир</h1>
+  <p id="state">подключаюсь…</p>
+  <div class="stage">
+    <canvas id="viz"></canvas>
+    <button id="btn" aria-label="Слушать">
+      <svg class="play" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 3.5v17a1 1 0 0 0 1.5.86l14-8.5a1 1 0 0 0 0-1.72l-14-8.5A1 1 0 0 0 7 3.5z"/></svg>
+      <svg class="stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor"/></svg>
+    </button>
+  </div>
+  <p id="hint">Жми и слушай</p>
+  <div class="who" id="who">
+    <label for="name">Как тебя зовут? Ведущий увидит имя в запросе</label>
+    <input id="name" maxlength="24" autocomplete="nickname" placeholder="Например, Аня">
+  </div>
+  <div class="now" id="now"><img id="cover" alt=""><a id="tlink" target="_blank" rel="noopener"><div class="t" id="title"></div><div class="a" id="artist"></div></a></div>
+  <div class="dj" id="dj"></div>
+  <label class="vol">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 4V5L7 9H3zm12.5 3a4 4 0 0 0-2-3.46v6.92a4 4 0 0 0 2-3.46z"/></svg>
+    <input id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Громкость">
+  </label>
+  <label class="tune">Запас от заиканий
+    <input id="buf" type="range" min="80" max="1500" step="10" value="250" aria-label="Буфер">
+    <output id="bufv">250 мс</output>
+  </label>
+  <div class="foot">
+    <button class="sticker" id="share">Позвать друзей</button>
+    <div class="meta"><span id="fmt"></span><br>задержка <span id="lat">–</span><br>провалов <span id="und">0</span></div>
+  </div>
+</main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const m = location.pathname.match(/^\/r\/([^/]+)/);
+  const room = m ? decodeURIComponent(m[1]) : '';
+  $('room').textContent = room || 'эфир'; if (room.length > 9) $('room').className = 'long';
+  const base = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + (room ? '/ws/' + encodeURIComponent(room) : '/ws');
+  const OPUS_CFG = { codec: 'opus', sampleRate: 48000, numberOfChannels: 2 };
+
+  let ws, ctx, gain, analyser, bins, dec, playing = false, live = false, codec = 'pcm', wantOpus = false;
+  let fmt = { rate: 48000, channels: 2 }, ts = 0;
+  let nextTime = 0, underruns = 0, target = 0.25, retry = 500;
+  // Запрос на вход: телефон ведущего отвечает waiting / approved / denied. Relay-сервер их не шлёт — там пускают всех.
+  let asked = false, waiting = false;
+  const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch {} return null; };
+  let cid = store('wc-cid');
+  if (!cid) { cid = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(36).padStart(2, '0')).join('').slice(0, 20); store('wc-cid', cid); }
+  $('name').value = store('wc-name') || '';
+  const join = () => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'join', name: $('name').value.trim().slice(0, 24) || 'Гость', cid })); };
+
+RING_JS
+  ring($('viz'), () => { if (!analyser || !playing) return null; analyser.getByteFrequencyData(bins); return bins; });
+
+  const setState = (txt, err) => { $('state').textContent = txt; $('state').className = err ? 'err' : ''; };
+  const plural = n => n + ' ' + (n % 10 === 1 && n % 100 !== 11 ? 'слушает' : 'слушают');
+  function ui() {
+    $('btn').className = playing ? 'on' : '';
+    $('btn').setAttribute('aria-label', playing ? 'Остановить' : 'Слушать');
+    $('hint').textContent = !playing ? 'Жми и слушай' : waiting ? 'Запрос отправлен' : live ? 'Звук идёт' : 'Жду эфир — заиграет само';
+  }
+
+  async function opusSupported() {
+    try { return typeof AudioDecoder !== 'undefined' && (await AudioDecoder.isConfigSupported(OPUS_CFG)).supported; }
+    catch { return false; }
+  }
+
+  function connect() {
+    codec = wantOpus ? 'opus' : 'pcm';
+    ws = new WebSocket(base + '?codec=' + codec);
+    ws.binaryType = 'arraybuffer';
+    ws.onopen = () => { retry = 500; setState('На связи, жду эфир'); if (asked) join(); };
+    ws.onclose = () => { live = false; $('pill').className = 'pill'; $('cnt').textContent = 'не в эфире'; setState('Нет связи, переподключаюсь…'); ui(); setTimeout(connect, retry); retry = Math.min(retry * 2, 8000); };
+    ws.onmessage = ev => typeof ev.data === 'string' ? onText(JSON.parse(ev.data)) : onAudio(ev.data);
+  }
+
+  function onText(m) {
+    switch (m.type) {
+      case 'format':
+        fmt = m; nextTime = 0;
+        if (m.codec === 'pcm_s16le') codec = 'pcm';      // локальный режим телефона: всегда PCM
+        $('fmt').textContent = (codec === 'opus' ? 'Opus ' : 'PCM ') + (m.rate / 1000) + ' кГц';
+        break;
+      case 'status':
+        live = m.live;
+        $('pill').className = 'pill' + (live ? ' live' : '');
+        $('cnt').textContent = live ? plural(m.listeners) : 'не в эфире';
+        if (!waiting) setState(live ? (playing ? 'Ты в эфире' : 'Эфир идёт') : 'Эфир ещё не начался. Страница сама подключится.');
+        if (!live) $('now').style.display = 'none';
+        ui();
+        break;
+      case 'track':
+        $('title').textContent = m.title || ''; $('artist').textContent = m.artist || '';
+        $('cover').src = m.cover || ''; $('cover').style.display = m.cover ? 'block' : 'none';
+        if (m.url) $('tlink').href = m.url; else $('tlink').removeAttribute('href');
+        $('now').style.display = 'flex';
+        document.title = `${m.title} — ${m.artist}`;
+        break;
+      case 'dj':
+        $('dj').textContent = m.text; $('dj').style.display = 'block';
+        clearTimeout(onText.djt); onText.djt = setTimeout(() => $('dj').style.display = 'none', 20000);
+        break;
+      case 'waiting':
+        waiting = true; setState('Ждём, пока ведущий пустит…'); ui();
+        break;
+      case 'approved':
+        waiting = false; $('who').style.display = 'none'; setState(playing ? 'Ты в эфире' : 'Эфир идёт'); ui();
+        break;
+      case 'denied':
+        waiting = false; asked = false; playing = false; if (ctx) ctx.suspend();
+        $('who').style.display = ''; setState('Ведущий не пустил в эфир', true); ui();
+        break;
+      case 'busy':
+        waiting = false; asked = false; playing = false; if (ctx) ctx.suspend();
+        setState('У ведущего сейчас много запросов. Попробуй через минуту.', true); ui();
+        break;
+      case 'error':
+        setState(m.message, true); retry = 30000;
+        break;
+    }
+  }
+
+  function onAudio(buf) {
+    if (!playing) return;
+    if (codec === 'opus') {
+      if (!dec || dec.state === 'closed') makeDecoder();
+      dec.decode(new EncodedAudioChunk({ type: 'key', timestamp: ts, data: buf }));
+      ts += 20000;
+      return;
+    }
+    const ch = fmt.channels || 2, pcm = new Int16Array(buf), frames = pcm.length / ch;
+    if (!frames) return;
+    const ab = ctx.createBuffer(ch, frames, fmt.rate || 48000);
+    for (let c = 0; c < ch; c++) {
+      const out = ab.getChannelData(c);
+      for (let i = 0, j = c; i < frames; i++, j += ch) out[i] = pcm[j] / 32768;
+    }
+    schedule(ab);
+  }
+
+  function makeDecoder() {
+    dec = new AudioDecoder({
+      output: ad => {
+        const n = ad.numberOfFrames, ch = ad.numberOfChannels, ab = ctx.createBuffer(ch, n, ad.sampleRate);
+        try {
+          for (let c = 0; c < ch; c++) { const t = new Float32Array(n); ad.copyTo(t, { planeIndex: c, format: 'f32-planar' }); ab.copyToChannel(t, c); }
+        } catch {   // браузер не умеет конвертировать — разбираем interleaved сами
+          const t = new Float32Array(n * ch); ad.copyTo(t, { planeIndex: 0 });
+          for (let c = 0; c < ch; c++) { const o = ab.getChannelData(c); for (let i = 0; i < n; i++) o[i] = t[i * ch + c]; }
+        }
+        ad.close();
+        schedule(ab);
+      },
+      error: e => { console.warn('opus decoder', e); wantOpus = false; ws.close(); }   // откат на PCM
+    });
+    dec.configure(OPUS_CFG);
+  }
+
+  function schedule(ab) {
+    const now = ctx.currentTime;
+    if (nextTime < now + 0.02) {
+      if (nextTime) { underruns++; $('und').textContent = underruns; }
+      nextTime = now + target;
+    } else if (nextTime - now > target + 0.5) {
+      nextTime = now + target;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = ab; src.connect(gain); src.start(nextTime);
+    nextTime += ab.duration;
+    $('lat').textContent = Math.round((nextTime - now) * 1000) + ' мс';
+  }
+
+  $('btn').onclick = async () => {
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+      gain = ctx.createGain(); analyser = ctx.createAnalyser(); analyser.fftSize = 256; analyser.smoothingTimeConstant = .6;
+      bins = new Uint8Array(analyser.frequencyBinCount);
+      gain.connect(analyser); analyser.connect(ctx.destination);
+      gain.gain.value = +$('vol').value;
+    }
+    if (!playing) {
+      await ctx.resume(); playing = true; nextTime = 0;
+      if (!asked) { asked = true; store('wc-name', $('name').value.trim()); join(); }
+    }
+    else { playing = false; await ctx.suspend(); }
+    if (live && !waiting) setState(playing ? 'Ты в эфире' : 'Эфир идёт');
+    ui();
+  };
+  $('vol').oninput = e => { if (gain) gain.gain.value = +e.target.value; };
+  $('buf').oninput = e => { target = e.target.value / 1000; $('bufv').textContent = e.target.value + ' мс'; };
+  $('share').onclick = async () => {
+    const url = location.href;
+    try { if (navigator.share) return await navigator.share({ title: 'WaveCast', text: 'Залетай в мой эфир', url }); } catch { return; }
+    try { await navigator.clipboard.writeText(url); $('share').textContent = 'Ссылка скопирована'; setTimeout(() => $('share').textContent = 'Позвать друзей', 2000); } catch { prompt('Ссылка:', url); }
+  };
+
+  $('name').onkeydown = e => { if (e.key === 'Enter') $('btn').click(); };
+  opusSupported().then(ok => { wantOpus = ok; connect(); });
+})();
+</script>
+</body>
+</html>

@@ -40,8 +40,15 @@ class CaptureService : Service() {
         val p2pConnected: Boolean = false,   // есть связь с сигнальным сервисом
         val p2pListeners: Int = 0,
         val p2pError: String? = null,
+        val requests: List<Request> = emptyList(),   // кто просится в эфир
+        val autoAllow: Boolean = false,
         val error: String? = null,
     )
+
+    /** Запрос на вход. key: "p:<id>" — по ссылке, "w:<id>" — из Wi-Fi сети. */
+    data class Request(val key: String, val name: String) {
+        val viaWifi get() = key.startsWith("w:")
+    }
 
     companion object {
         const val ACTION_START = "dev.smoke.wavecast.START"
@@ -53,12 +60,18 @@ class CaptureService : Service() {
         const val EXTRA_SERVICE = "service"
         const val EXTRA_ROOM = "room"
         const val EXTRA_HOST_KEY = "hostKey"
+        const val EXTRA_AUTO = "auto"
+        const val ACTION_DECIDE = "dev.smoke.wavecast.DECIDE"
+        const val ACTION_AUTO = "dev.smoke.wavecast.AUTO"
+        const val EXTRA_REQ = "req"
+        const val EXTRA_ALLOW = "allow"
 
         const val SAMPLE_RATE = 48_000
         const val CHANNELS = 2
         private const val CHUNK_MS = 40
         private const val CHANNEL_ID = "wavecast"
         private const val NOTIF_ID = 1
+        private const val REQ_CHANNEL_ID = "wavecast_requests"
         private const val TAG = "WaveCast"
 
         private val main = Handler(Looper.getMainLooper())
@@ -78,6 +91,7 @@ class CaptureService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
     private var p2p: P2PHost? = null
+    private var local: LocalServer? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -85,6 +99,8 @@ class CaptureService : Service() {
         when (intent?.action) {
             ACTION_STOP -> { stopAll(); return START_NOT_STICKY }
             ACTION_START -> if (!capturing) start(intent)
+            ACTION_DECIDE -> decide(intent.getStringExtra(EXTRA_REQ).orEmpty(), intent.getBooleanExtra(EXTRA_ALLOW, false))
+            ACTION_AUTO -> setAuto(intent.getBooleanExtra(EXTRA_AUTO, false))
         }
         return START_NOT_STICKY
     }
@@ -106,15 +122,23 @@ class CaptureService : Service() {
             override fun onStop() { main.post { stopAll() } }
         }, main)
 
-        var st = Status(running = true)
+        val auto = intent.getBooleanExtra(EXTRA_AUTO, false)
+        var st = Status(running = true, autoAllow = auto)
+        publish(st)
 
         // Локальный сервер нужен всегда: он раздаёт звук по Wi-Fi и кормит P2P-страницу
         val want = intent.getIntExtra(EXTRA_PORT, 8080)
         val srv = (want until want + 10).firstNotNullOfOrNull { p ->
-            runCatching { p to LocalServer(p, assets) { n -> publish(status.copy(localListeners = n)); updateNotification() } }.getOrNull()
+            runCatching {
+                p to LocalServer(p, assets,
+                    onListeners = { n -> publish(status.copy(localListeners = n)); updateNotification() },
+                    onRequest = { id, name -> main.post { addRequest(Request("w:$id", name)) } },
+                    onRequestGone = { id -> main.post { removeRequest("w:$id") } })
+            }.getOrNull()
         }
         if (srv == null) { fail("Порты $want–${want + 9} заняты"); return }
         val port = srv.first
+        local = srv.second.also { it.autoAllow = auto }
         sinks += srv.second
         if (intent.getBooleanExtra(EXTRA_LOCAL, true)) {
             st = st.copy(localUrls = LocalServer.localAddresses().map { "http://$it:$port" })
@@ -125,20 +149,76 @@ class CaptureService : Service() {
             val room = intent.getStringExtra(EXTRA_ROOM).orEmpty()
             val base = P2PHost.normalize(service)
             st = st.copy(p2pUrl = P2PHost.listenUrl(service, room))
-            p2p = P2PHost(this, port, base, room, intent.getStringExtra(EXTRA_HOST_KEY).orEmpty()) { ok, n, err ->
-                publish(status.copy(p2pConnected = ok, p2pListeners = n, p2pError = err))
-                updateNotification()
-            }
+            p2p = P2PHost(this, port, base, room, intent.getStringExtra(EXTRA_HOST_KEY).orEmpty(), srv.second.internalToken, auto,
+                onState = { ok, n, err ->
+                    publish(status.copy(p2pConnected = ok, p2pListeners = n, p2pError = err))
+                    updateNotification()
+                },
+                onRequest = { id, name -> addRequest(Request("p:$id", name)) },
+                onRequestGone = { id -> removeRequest("p:$id") })
         }
 
         val rec = try { buildRecorder(mp) } catch (e: Exception) { fail("AudioRecord: ${e.message}"); return }
         recorder = rec
 
         acquireLocks()
-        publish(st)
+        publish(st.copy(requests = status.requests))
         updateNotification()
         capturing = true
         thread(name = "wc-capture", priority = Thread.MAX_PRIORITY) { captureLoop(rec) }
+    }
+
+    // ---- запросы на вход ----
+
+    private fun addRequest(r: Request) {
+        if (!capturing && recorder == null) return
+        publish(status.copy(requests = status.requests.filter { it.key != r.key } + r))
+        requestNotification(r)
+    }
+
+    private fun removeRequest(key: String) {
+        getSystemService(NotificationManager::class.java).cancel(notifId(key))
+        publish(status.copy(requests = status.requests.filter { it.key != key }))
+    }
+
+    private fun decide(key: String, allow: Boolean) {
+        val id = key.substringAfter(':')
+        if (key.startsWith("p:")) p2p?.decide(id, allow) else local?.decide(id, allow)
+        removeRequest(key)
+    }
+
+    private fun setAuto(on: Boolean) {
+        p2p?.setAuto(on)
+        local?.autoAllow = on
+        publish(status.copy(autoAllow = on))
+        if (on) status.requests.forEach { removeRequest(it.key) }
+    }
+
+    private fun notifId(key: String) = 1000 + (key.hashCode() and 0xFFFF)
+
+    private fun requestNotification(r: Request) {
+        val nm = getSystemService(NotificationManager::class.java)
+        if (nm.getNotificationChannel(REQ_CHANNEL_ID) == null) {
+            nm.createNotificationChannel(NotificationChannel(REQ_CHANNEL_ID, "Запросы на вход", NotificationManager.IMPORTANCE_HIGH))
+        }
+        fun action(allow: Boolean) = PendingIntent.getService(
+            this, notifId(r.key) * 2 + (if (allow) 1 else 0),
+            Intent(this, CaptureService::class.java).setAction(ACTION_DECIDE)
+                .putExtra(EXTRA_REQ, r.key).putExtra(EXTRA_ALLOW, allow),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        val n = Notification.Builder(this, REQ_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_wave)
+            .setContentTitle("${r.name} хочет подключиться")
+            .setContentText(if (r.viaWifi) "Из твоей Wi-Fi сети" else "По ссылке на эфир")
+            .setContentIntent(open)
+            .setCategory(Notification.CATEGORY_CALL)
+            .setAutoCancel(true)
+            .addAction(Notification.Action.Builder(null, "Пустить", action(true)).build())
+            .addAction(Notification.Action.Builder(null, "Отклонить", action(false)).build())
+            .build()
+        nm.notify(notifId(r.key), n)
     }
 
     @SuppressLint("MissingPermission") // RECORD_AUDIO запрашивается в MainActivity
@@ -200,6 +280,8 @@ class CaptureService : Service() {
         recorder = null
         p2p?.let { runCatching { it.close() } }
         p2p = null
+        local = null
+        status.requests.forEach { getSystemService(NotificationManager::class.java).cancel(notifId(it.key)) }
         sinks.forEach { runCatching { it.close() } }
         sinks.clear()
         runCatching { projection?.stop() }

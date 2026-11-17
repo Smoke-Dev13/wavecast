@@ -25,6 +25,7 @@ import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import com.google.zxing.BarcodeFormat
@@ -48,15 +49,26 @@ class MainActivity : Activity() {
     private lateinit var tvCountLabel: TextView
     private lateinit var lblService: TextView
     private lateinit var lblRoom: TextView
+    private lateinit var reqBox: LinearLayout
+    private lateinit var swAuto: Switch
+    private var shownRequests: List<CaptureService.Request>? = null
     private var qrFor: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(buildUi())
         etService.setText(prefs.getString("service", ""))
-        etRoom.setText(prefs.getString("room", null) ?: random(ROOM_CHARS, 6))
+        etRoom.setText(prefs.getString("room", null) ?: random(ROOM_CHARS, 12))
         btn.setOnClickListener { if (CaptureService.status.running) stop() else askPermissions() }
         btnShare.setOnClickListener { share() }
+        swAuto.isChecked = prefs.getBoolean("autoAllow", false)
+        swAuto.setOnCheckedChangeListener { _, on ->
+            prefs.edit().putBoolean("autoAllow", on).apply()
+            if (CaptureService.status.running && CaptureService.status.autoAllow != on) {
+                startService(Intent(this, CaptureService::class.java)
+                    .setAction(CaptureService.ACTION_AUTO).putExtra(CaptureService.EXTRA_AUTO, on))
+            }
+        }
         tvLink.setOnClickListener { copyLink() }
     }
 
@@ -115,6 +127,7 @@ class MainActivity : Activity() {
             .putExtra(CaptureService.EXTRA_SERVICE, etService.text.toString().trim())
             .putExtra(CaptureService.EXTRA_ROOM, room())
             .putExtra(CaptureService.EXTRA_HOST_KEY, hostKey())
+            .putExtra(CaptureService.EXTRA_AUTO, swAuto.isChecked)
         startForegroundService(i)
     }
 
@@ -149,6 +162,7 @@ class MainActivity : Activity() {
         if (s.error != null) sb.append("Не получилось: ${s.error}\n\n")
         if (!on) {
             sb.append("Нажми «В эфир» и включай музыку где угодно. Друзья услышат то же, что и ты.\n\n")
+            if (!swAuto.isChecked) sb.append("Каждый слушатель сначала просится в эфир, а ты пускаешь его кнопкой в уведомлении.\n\n")
             sb.append(if (etService.text.isBlank()) "Без адреса сервиса эфир ловится только в твоей Wi-Fi сети или на твоей точке доступа."
                       else "Друзья заходят по ссылке или QR-коду из любой сети.")
         } else {
@@ -159,6 +173,7 @@ class MainActivity : Activity() {
             } else if (s.p2pUrl == null) sb.append("Нет Wi-Fi сети: подключись к Wi-Fi или включи точку доступа.\n")
         }
         tvStatus.text = sb.toString()
+        renderRequests(if (on) s.requests else emptyList())
     }
 
     private fun px(v: Int) = (v * resources.displayMetrics.density).toInt()
@@ -233,6 +248,18 @@ class MainActivity : Activity() {
         btn = button(LILAC, INK, 20f)
         root.addView(btn, wide(top = 24))
 
+        // кто просится в эфир — сразу под счётчиком, это главное во время эфира
+        reqBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        root.addView(reqBox, wide(top = 6))
+
+        swAuto = Switch(this).apply {
+            text = "Пускать всех без вопросов"; textSize = 15f; setTextColor(MILK); typeface = medium
+            thumbTintList = android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(LILAC, DIM))
+            trackTintList = android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(LILAC, PANEL))
+            setPadding(0, px(8), 0, px(8))
+        }
+        root.addView(swAuto, wide(top = 14))
+
         // QR на светлой карточке
         ivQr = ImageView(this)
         qrCard = FrameLayout(this).apply {
@@ -250,6 +277,41 @@ class MainActivity : Activity() {
         root.addView(tvStatus, wide(top = 22))
 
         return ScrollView(this).apply { setBackgroundColor(BG); isFillViewport = true; addView(root) }
+    }
+
+    private fun renderRequests(list: List<CaptureService.Request>) {
+        if (list == shownRequests) return
+        shownRequests = list
+        reqBox.removeAllViews()
+        for (r in list) {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                background = shape(PANEL, 20)
+                setPadding(px(16), px(14), px(16), px(14))
+            }
+            card.addView(TextView(this).apply {
+                text = "${r.name} хочет подключиться"; textSize = 17f; setTextColor(MILK); typeface = Typeface.DEFAULT_BOLD
+            })
+            card.addView(TextView(this).apply {
+                text = if (r.viaWifi) "Из твоей Wi-Fi сети" else "По ссылке на эфир"; textSize = 14f; setTextColor(DIM)
+            })
+            val row = LinearLayout(this).apply { setPadding(0, px(12), 0, 0) }
+            fun choice(label: String, allow: Boolean, fill: Int, ink: Int) = Button(this).apply {
+                text = label; isAllCaps = false; textSize = 15f; typeface = Typeface.DEFAULT_BOLD; setTextColor(ink)
+                stateListAnimator = null; background = shape(fill, 99); setPadding(0, px(12), 0, px(12))
+                pressable(this)
+                setOnClickListener {
+                    startService(Intent(this@MainActivity, CaptureService::class.java)
+                        .setAction(CaptureService.ACTION_DECIDE)
+                        .putExtra(CaptureService.EXTRA_REQ, r.key).putExtra(CaptureService.EXTRA_ALLOW, allow))
+                }
+            }
+            row.addView(choice("Пустить", true, LILAC, INK), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            row.addView(View(this), LinearLayout.LayoutParams(px(10), 1))
+            row.addView(choice("Отклонить", false, BG, MILK), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            card.addView(row)
+            reqBox.addView(card, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = px(10) })
+        }
     }
 
     private fun qr(text: String): Bitmap {

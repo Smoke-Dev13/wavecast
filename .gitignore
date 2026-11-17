@@ -10,3 +10,7 @@ local.properties
 node_modules/
 .wrangler/
 build-nogradle/
+keystore.properties
+*.keystore
+*.jks
+*.idsig

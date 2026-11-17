@@ -11,24 +11,34 @@ android {
         applicationId = "dev.smoke.wavecast"
         minSdk = 29          // AudioPlaybackCapture появился в Android 10
         targetSdk = 34
-        versionCode = 5
-        versionName = "0.5.0"
+        versionCode = 6
+        versionName = "0.6.0"
     }
 
+    // Ключ подписи хранится только у владельца, в репозиторий не попадает.
+    // Берётся из android/keystore.properties (storeFile, storePassword, keyAlias, keyPassword)
+    // или из переменных окружения WAVECAST_KEYSTORE, WAVECAST_STORE_PASSWORD, WAVECAST_KEY_ALIAS, WAVECAST_KEY_PASSWORD.
+    val signProps = java.util.Properties().apply {
+        val f = rootProject.file("keystore.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+    fun sign(prop: String, env: String): String? = signProps.getProperty(prop) ?: System.getenv(env)
+    val storePath = sign("storeFile", "WAVECAST_KEYSTORE")
+
     signingConfigs {
-        // Фиксированный публичный ключ, чтобы новые сборки ставились поверх старых.
-        create("oss") {
-            storeFile = file("wavecast.keystore")
-            storePassword = "wavecast"
-            keyAlias = "wavecast"
-            keyPassword = "wavecast"
+        if (storePath != null) create("release") {
+            storeFile = rootProject.file(storePath)
+            storePassword = sign("storePassword", "WAVECAST_STORE_PASSWORD")
+            keyAlias = sign("keyAlias", "WAVECAST_KEY_ALIAS") ?: "wavecast"
+            keyPassword = sign("keyPassword", "WAVECAST_KEY_PASSWORD") ?: storePassword
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("oss")
+            // без ключа собирается неподписанный APK — поставить его на телефон нельзя
+            if (storePath != null) signingConfig = signingConfigs.getByName("release")
         }
     }
 

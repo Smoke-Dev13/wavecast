@@ -36,10 +36,22 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
+      # Ключ подписи — в секретах репозитория (Settings → Secrets and variables → Actions):
+      #   WAVECAST_KEYSTORE_B64 (keystore в base64), WAVECAST_STORE_PASSWORD
+      # Без них собирается неподписанный APK, на телефон его не поставить.
       - name: Build APK
+        env:
+          KEYSTORE_B64: ${{ secrets.WAVECAST_KEYSTORE_B64 }}
+          WAVECAST_STORE_PASSWORD: ${{ secrets.WAVECAST_STORE_PASSWORD }}
         run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            export WAVECAST_KEYSTORE="$RUNNER_TEMP/release.jks" WAVECAST_KEY_ALIAS=wavecast
+          else
+            echo "::warning::нет секрета WAVECAST_KEYSTORE_B64 — APK будет неподписанным"
+          fi
           gradle -p android assembleRelease --no-daemon
-          cp android/app/build/outputs/apk/release/app-release.apk wavecast.apk
+          cp android/app/build/outputs/apk/release/app-release*.apk wavecast.apk
       - uses: actions/upload-artifact@v4
         with:
           name: wavecast-apk

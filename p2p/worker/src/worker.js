@@ -3,7 +3,7 @@
 // и отдаёт страницу слушателя.
 //
 //   GET /r/<комната>                      страница слушателя
-//   WS  /signal/<комната>?role=listener   слушатель
+//   WS  /signal/<комната>?role=listener   слушатель; просится в эфир сообщением {type:"join", name, cid}
 //   WS  /signal/<комната>?role=host&key=  ведущий (ключ закрепляется за комнатой при первом входе)
 import { DurableObject } from "cloudflare:workers";
 
@@ -56,17 +56,16 @@ export class Room extends DurableObject {
     }
 
     this.ctx.acceptWebSocket(ws, [role, "id:" + id]);
-    ws.serializeAttachment({ role, id });
+    ws.serializeAttachment({ role, id, asked: false, name: "", cid: "" });
     const live = role === "host" || this.ctx.getWebSockets("host").length > 0;
     ws.send(JSON.stringify({ type: "hello", id, live, iceServers: await this.iceServers() }));
 
     if (role === "host") {
-      // ведущий (пере)подключился: сообщаем ему обо всех, кто ждёт
+      // ведущий (пере)подключился: передаём ему всех, кто уже просился в эфир
       for (const l of this.ctx.getWebSockets("listener")) {
-        ws.send(JSON.stringify({ type: "join", from: l.deserializeAttachment().id }));
+        const a = l.deserializeAttachment();
+        if (a.asked) ws.send(JSON.stringify({ type: "join", from: a.id, name: a.name, cid: a.cid }));
       }
-    } else {
-      this.toHosts({ type: "join", from: id });
     }
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -87,8 +86,16 @@ export class Room extends DurableObject {
     try { d = JSON.parse(raw); } catch { return; }
     const me = ws.deserializeAttachment();
     if (me.role === "listener") {
-      if (!["answer", "ice", "join"].includes(d.type)) return;
-      this.toHosts({ ...d, from: me.id });
+      if (d.type === "join") {
+        // имя и id устройства слушателя: только для показа ведущему, чистим и обрезаем
+        me.name = String(d.name || "").replace(/[\u0000-\u001f\u007f<>]/g, "").trim().slice(0, 24);
+        me.cid = String(d.cid || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32);
+        me.asked = true;
+        ws.serializeAttachment(me);
+        return this.toHosts({ type: "join", from: me.id, name: me.name, cid: me.cid });
+      }
+      if (!["answer", "ice"].includes(d.type)) return;
+      this.toHosts({ type: d.type, sdp: d.sdp, candidate: d.candidate, from: me.id });
     } else if (d.to) {
       const { to, ...msg } = d;
       for (const l of this.ctx.getWebSockets("id:" + to)) try { l.send(JSON.stringify(msg)); } catch {}
