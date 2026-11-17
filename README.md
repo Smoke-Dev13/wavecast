@@ -142,4 +142,4 @@ Android: `gradle -p android assembleRelease` (JDK 17, Android SDK 34). APK со�
 - [ ] Аккаунты, личный кабинет, оплата (Kaspi / Stripe) поверх админ-API
 - [ ] Чат и реакции слушателей, заявки на треки, ИИ-модерация
 
-MIT License
+MIT License. Шрифты Unbounded и Onest — SIL Open Font License 1.1 (`android/app/src/main/assets/fonts/`).

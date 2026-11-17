@@ -58,11 +58,11 @@ class SettingsActivity : Activity() {
         val cur = Updater.currentName(this)
         when {
             rel != null -> {
-                tvUpdate.text = "Установлена $cur. Вышла ${rel.versionName}" + (if (rel.notes.isNotBlank()) "\n${rel.notes}" else "")
-                btnUpdate.text = "Обновить до ${rel.versionName}"
+                tvUpdate.text = "Версия $cur\nВышла ${rel.versionName}" + (if (rel.notes.isNotBlank()) ": ${rel.notes}" else "")
+                btnUpdate.text = "Обновить"
             }
-            err != null -> { tvUpdate.text = "Версия $cur. Не удалось проверить: $err"; btnUpdate.text = "Проверить обновления" }
-            else -> { tvUpdate.text = "Версия $cur"; btnUpdate.text = "Проверить обновления" }
+            err != null -> { tvUpdate.text = "Версия $cur\nНе удалось проверить: $err"; btnUpdate.text = "Проверить" }
+            else -> { tvUpdate.text = "Версия $cur"; btnUpdate.text = "Проверить" }
         }
     }
 
@@ -72,7 +72,7 @@ class SettingsActivity : Activity() {
             btnUpdate.text = "Проверяю…"
             Updater.check(this, force = true) { r, err ->
                 renderUpdate(r, err)
-                if (r == null && err == null) tvUpdate.text = "Версия ${Updater.currentName(this)} — это последняя"
+                if (r == null && err == null) tvUpdate.text = "Версия ${Updater.currentName(this)}\nЭто последняя версия"
             }
             return
         }
@@ -88,59 +88,81 @@ class SettingsActivity : Activity() {
     private fun buildUi(): View {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(px(22), px(14), px(22), px(32))
+            setPadding(px(22), px(12), px(22), px(32))
         }
-        // шапка: назад + заголовок
+        // шапка: круглая «назад» + заголовок
         val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        head.addView(label("←", 26f).apply {
-            setPadding(0, px(8), px(16), px(8))
+        head.addView(label("←", 20f, Ui.MILK, Ui.bold).apply {
+            gravity = Gravity.CENTER; background = shape(Ui.PANEL, 99)
             contentDescription = "Назад"
             setOnClickListener { finish() }
-        })
-        head.addView(label("Настройки", 26f, Ui.MILK, Ui.display))
-        root.addView(head, wide())
-
-        fun section(t: String, top: Int = 30) = root.addView(label(t, 14f, Ui.LILAC, android.graphics.Typeface.DEFAULT_BOLD), wide(top))
-        fun hint(t: String) = root.addView(label(t, 13f, Ui.DIM).apply { setLineSpacing(px(2).toFloat(), 1f) }, wide(6))
+            pressable(this)
+        }, LinearLayout.LayoutParams(px(40), px(40)))
+        head.addView(label("Настройки", 24f, Ui.MILK, Ui.display).apply { letterSpacing = -0.03f; setPadding(px(12), 0, 0, 0) })
+        root.addView(head, wide(6))
 
         if (CaptureService.status.running) {
             root.addView(label("Эфир идёт: название и адрес поменяются в следующем эфире", 14f, Ui.MILK).apply {
                 background = shape(Ui.PANEL, 16); setPadding(px(16), px(12), px(16), px(12))
-            }, wide(16))
+            }, wide(18))
         }
 
-        section("Эфир", 24)
-        root.addView(label("Название эфира", 13f, Ui.DIM), wide(14))
-        etRoom = field("party")
-        root.addView(etRoom, wide(6))
-        hint("Часть ссылки для друзей. Латиница, цифры, - и _")
-        root.addView(label("Адрес сервиса", 13f, Ui.DIM), wide(18))
-        etService = field(Settings.DEFAULT_SERVICE)
-        root.addView(etService, wide(6))
-        hint("Менять не нужно, если ты не поднимал свой сервис")
+        fun section(t: String) = root.addView(label(t, 13f, Ui.DIM).apply { setPadding(px(4), 0, 0, 0) }, wide(24))
+        fun group() = card(20, 0).also { root.addView(it, wide(8)) }
+        fun divider(g: LinearLayout) = g.addView(View(this).apply { setBackgroundColor(LINE) },
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1))
+        fun inputRow(g: LinearLayout, title: String, hint: String, help: String): EditText {
+            val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(px(16), px(14), px(16), px(12)) }
+            row.addView(label(title, 13f, Ui.DIM))
+            val e = field(hint).apply { background = null; setPadding(0, px(6), 0, px(4)); textSize = 16f }
+            row.addView(e, wide())
+            row.addView(label(help, 12f, Ui.DIM).apply { alpha = 0.8f; setLineSpacing(px(2).toFloat(), 1f) }, wide(2))
+            g.addView(row)
+            return e
+        }
+        fun toggleRow(g: LinearLayout, title: String, help: String): Switch {
+            val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(16), px(14), px(12), px(14)) }
+            val txt = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            txt.addView(label(title, 16f, Ui.MILK))
+            txt.addView(label(help, 13f, Ui.DIM).apply { setLineSpacing(px(2).toFloat(), 1f) }, wide(4))
+            row.addView(txt, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            val sw = toggle("").apply { setPadding(px(10), 0, 0, 0) }
+            row.addView(sw)
+            row.setOnClickListener { sw.toggle() }
+            g.addView(row)
+            return sw
+        }
 
-        section("Слушатели")
-        swAuto = toggle("Пускать всех без вопросов")
-        root.addView(swAuto, wide(6))
-        hint("Выключено — каждый слушатель сначала просится в эфир, а ты пускаешь его кнопкой в уведомлении")
+        section("Эфир")
+        val g1 = group()
+        etRoom = inputRow(g1, "Название эфира", "party", "Часть ссылки для друзей. Латиница, цифры, - и _")
+        divider(g1)
+        etService = inputRow(g1, "Адрес сервиса", Settings.DEFAULT_SERVICE, "Менять не нужно, если ты не поднимал свой сервис")
 
-        section("Звук")
-        swMute = toggle("Не транслировать мессенджеры")
-        root.addView(swMute, wide(6))
-        hint("Голосовые и звук Telegram, WhatsApp, Viber, Signal, VK Мессенджера, MAX не попадут в эфир")
+        section("Слушатели и звук")
+        val g2 = group()
+        swAuto = toggleRow(g2, "Пускать всех без вопросов", "Иначе каждый просится в эфир, а ты пускаешь его кнопкой в уведомлении")
+        divider(g2)
+        swMute = toggleRow(g2, "Не транслировать мессенджеры", "Голосовые и звук Telegram, WhatsApp, Viber, Signal, VK Мессенджера, MAX не попадут в эфир")
 
         section("О приложении")
+        val g3 = group()
+        val ver = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(16), px(14), px(12), px(14)) }
         tvUpdate = label("", 15f, Ui.MILK).apply { setLineSpacing(px(3).toFloat(), 1f) }
-        root.addView(tvUpdate, wide(12))
-        btnUpdate = pill(Ui.PANEL, Ui.MILK, 16f).apply { setOnClickListener { onUpdateClick() } }
-        root.addView(btnUpdate, wide(12))
-        root.addView(pill(Ui.BG, Ui.DIM, 15f).apply {
-            text = "Исходный код на GitHub"
+        ver.addView(tvUpdate, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        btnUpdate = chipButton("Проверить", Ui.BG, Ui.MILK).apply { setOnClickListener { onUpdateClick() } }
+        ver.addView(btnUpdate, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = px(10) })
+        g3.addView(ver)
+        divider(g3)
+        g3.addView(label("Исходный код на GitHub", 16f, Ui.MILK).apply {
+            setPadding(px(16), px(16), px(16), px(16))
             setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Updater.REPO_URL))) }
-        }, wide(4))
+        })
 
         return ScrollView(this).apply { setBackgroundColor(Ui.BG); isFillViewport = true; addView(root) }
     }
+
+    companion object { private val LINE = android.graphics.Color.parseColor("#36314F") }
 
     private fun toast(t: String) = Toast.makeText(this, t, Toast.LENGTH_LONG).show()
 }

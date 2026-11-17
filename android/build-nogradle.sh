@@ -14,7 +14,7 @@ VC=$(grep -oP 'versionCode = \K\d+' app/build.gradle.kts); VN=$(grep -oP 'versio
 B=build-nogradle; rm -rf "$B"; mkdir -p "$B"/{res,gen,classes,assets,dex}
 
 sed "s|<manifest |<manifest package=\"$PKG\" |" app/src/main/AndroidManifest.xml > "$B/AndroidManifest.xml"
-cp ../relay/wavecast/static/* ../p2p/host/* "$B/assets/"
+cp ../relay/wavecast/static/* ../p2p/host/* "$B/assets/"; cp -r app/src/main/assets/. "$B/assets/"
 aapt2 compile --dir app/src/main/res -o "$B/res.zip"
 aapt2 link -o "$B/base.apk" -I "$ANDROID_JAR" --manifest "$B/AndroidManifest.xml" -A "$B/assets" --java "$B/gen" \
   --min-sdk-version 29 --target-sdk-version 34 --version-code "$VC" --version-name "$VN" "$B/res.zip"

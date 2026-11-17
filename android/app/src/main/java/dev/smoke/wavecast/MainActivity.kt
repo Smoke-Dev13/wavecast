@@ -7,14 +7,13 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
-import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -27,14 +26,14 @@ class MainActivity : Activity() {
 
     private val s by lazy { Settings(this) }
 
-    private lateinit var btn: Button
-    private lateinit var btnShare: Button
+    private lateinit var btn: PulseButton
+    private lateinit var tvCaption: TextView
+    private lateinit var shareCard: LinearLayout
     private lateinit var tvRoom: TextView
     private lateinit var tvHint: TextView
     private lateinit var tvStatus: TextView
     private lateinit var tvLink: TextView
     private lateinit var ivQr: ImageView
-    private lateinit var qrCard: FrameLayout
     private lateinit var tvLive: TextView
     private lateinit var tvCount: TextView
     private lateinit var tvCountLabel: TextView
@@ -52,8 +51,7 @@ class MainActivity : Activity() {
         paintBars()
         setContentView(buildUi())
         btn.setOnClickListener { if (CaptureService.status.running) stop() else askPermissions() }
-        btnShare.setOnClickListener { share() }
-        tvLink.setOnClickListener { copyLink() }
+        ivQr.setOnClickListener { bigQr() }
         updBtn.setOnClickListener { update() }
     }
 
@@ -142,12 +140,14 @@ class MainActivity : Activity() {
 
     private fun render(st: CaptureService.Status) {
         val on = st.running
-        btn.text = if (on) "Закончить эфир" else "В эфир"
-        btn.background = shape(if (on) Ui.MILK else Ui.LILAC, 99)
+        btn.live = on
+        tvCaption.visibility = if (on) View.GONE else View.VISIBLE
         tvLive.text = if (on) "в эфире" else "не в эфире"
-        tvLive.setTextColor(if (on) Ui.CORAL else Ui.DIM)
+        tvLive.setTextColor(if (on) Ui.MILK else Ui.DIM)
+        tvLive.setCompoundDrawablesRelativeWithIntrinsicBounds(dot(if (on) Ui.CORAL else Ui.DIM), null, null, null)
 
-        tvRoom.text = "Эфир «${s.room}»"
+        tvRoom.text = android.text.SpannableStringBuilder("Эфир  ").append(s.room,
+            android.text.style.ForegroundColorSpan(Ui.MILK), 0).append("  ›")
         tvRoom.visibility = if (on) View.GONE else View.VISIBLE
         tvHint.visibility = tvRoom.visibility
 
@@ -155,10 +155,10 @@ class MainActivity : Activity() {
         tvCount.visibility = if (on) View.VISIBLE else View.GONE
         tvCount.text = "$total"
         tvCountLabel.visibility = tvCount.visibility
-        tvCountLabel.text = if (total % 10 == 1 && total % 100 != 11) "слушает сейчас" else "слушают сейчас"
+        tvCountLabel.text = (if (total % 10 == 1 && total % 100 != 11) "слушает" else "слушают") + " · " + s.room
 
         val url = if (on) link(st) else null
-        listOf(tvLink, qrCard, btnShare).forEach { it.visibility = if (url != null) View.VISIBLE else View.GONE }
+        shareCard.visibility = if (url != null) View.VISIBLE else View.GONE
         if (url != null) {
             tvLink.text = url.removePrefix("https://").removePrefix("http://")   // полная ссылка — в QR и при копировании
             if (qrFor != url) { ivQr.setImageBitmap(qr(url)); qrFor = url }
@@ -169,9 +169,9 @@ class MainActivity : Activity() {
         if (on) {
             if (st.p2pUrl != null && !st.p2pConnected) sb.append("Нет связи с сервисом: ${st.p2pError ?: "подключаюсь…"}\n\n")
             if (st.localUrls.isNotEmpty()) {
-                sb.append(if (st.p2pUrl != null) "Рядом и без интернета, в твоей Wi-Fi сети:\n" else "Ссылка работает в твоей Wi-Fi сети или на твоей точке доступа.\n")
-                if (st.p2pUrl != null) st.localUrls.forEach { sb.append("$it\n") }
-            } else if (st.p2pUrl == null) sb.append("Нет Wi-Fi сети: подключись к Wi-Fi или включи точку доступа.\n")
+                sb.append(if (st.p2pUrl != null) "Рядом и без интернета, в твоей Wi-Fi сети: " else "Ссылка работает только в твоей Wi-Fi сети или на твоей точке доступа")
+                if (st.p2pUrl != null) sb.append(st.localUrls.joinToString(", "))
+            } else if (st.p2pUrl == null) sb.append("Нет Wi-Fi сети: подключись к Wi-Fi или включи точку доступа")
         }
         tvStatus.text = sb.toString().trim()
         tvStatus.visibility = if (sb.isEmpty()) View.GONE else View.VISIBLE
@@ -179,84 +179,119 @@ class MainActivity : Activity() {
         renderUpdate(Updater.available)
     }
 
+    private fun dot(color: Int) = GradientDrawable().apply {
+        shape = GradientDrawable.OVAL; setColor(color); setSize(px(7), px(7))
+    }
+
     private fun buildUi(): View {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(px(22), px(14), px(22), px(28))
+            setPadding(px(22), px(12), px(22), px(24))
         }
 
         // шапка: марка, статус эфира, настройки
         val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         head.addView(label("WaveCast", 15f, Ui.MILK, Ui.display), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        tvLive = label("не в эфире", 13f, Ui.DIM, Typeface.DEFAULT_BOLD).apply {
-            setPadding(px(12), px(7), px(12), px(7)); background = shape(Ui.PANEL, 99)
+        tvLive = label("не в эфире", 13f, Ui.DIM, Ui.bold).apply {
+            setPadding(px(12), px(8), px(13), px(8)); background = shape(Ui.PANEL, 99)
+            compoundDrawablePadding = px(7); gravity = Gravity.CENTER_VERTICAL
         }
         head.addView(tvLive)
         head.addView(ImageView(this).apply {
             setImageResource(R.drawable.ic_settings)
             contentDescription = "Настройки"
-            setPadding(px(10), px(10), px(4), px(10))
+            background = shape(Ui.PANEL, 99)
+            setPadding(px(10), px(10), px(10), px(10))
             setOnClickListener { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
-        }, LinearLayout.LayoutParams(px(48), px(48)).apply { marginStart = px(6) })
-        root.addView(head, wide())
+            pressable(this)
+        }, LinearLayout.LayoutParams(px(40), px(40)).apply { marginStart = px(8) })
+        root.addView(head, wide(6))
 
         // плашка «вышло обновление»
         updCard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; visibility = View.GONE
-            background = shape(Ui.PANEL, 20); setPadding(px(16), px(14), px(16), px(14))
+            gravity = Gravity.CENTER_VERTICAL; visibility = View.GONE
+            background = shape(Ui.PANEL, 20); setPadding(px(16), px(12), px(12), px(12))
         }
-        updTitle = label("", 17f, Ui.MILK, Typeface.DEFAULT_BOLD)
-        updNotes = label("", 14f, Ui.DIM).apply { maxLines = 3; setPadding(0, px(6), 0, 0) }
-        updBtn = pill(Ui.LILAC, Ui.INK, 15f).apply { setPadding(0, px(12), 0, px(12)) }
-        updCard.addView(updTitle); updCard.addView(updNotes); updCard.addView(updBtn, wide(12))
+        val updText = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        updTitle = label("", 15f, Ui.MILK, Ui.bold)
+        updNotes = label("", 13f, Ui.DIM).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, px(3), 0, 0) }
+        updText.addView(updTitle); updText.addView(updNotes)
+        updCard.addView(updText, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        updBtn = chipButton("Обновить", Ui.LILAC, Ui.INK)
+        updCard.addView(updBtn, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = px(10) })
         root.addView(updCard, wide(16))
 
-        root.addView(label("Твоё радио", 42f, Ui.MILK, Ui.display).apply { letterSpacing = -0.04f }, wide(28))
-        tvRoom = label("", 16f, Ui.DIM).apply {
-            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+        root.addView(label("Твоё радио", 34f, Ui.MILK, Ui.display).apply { letterSpacing = -0.04f }, wide(28))
+        tvRoom = label("", 15f, Ui.DIM).apply {
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, px(8), 0, px(8))
             setOnClickListener { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
         }
-        root.addView(tvRoom, wide(10))
+        root.addView(tvRoom, wide(2))
 
-        tvCount = label("0", 72f, Ui.LILAC, Ui.display).apply { visibility = View.GONE }
-        root.addView(tvCount, wide(14))
-        tvCountLabel = label("слушают сейчас", 16f, Ui.DIM).apply { visibility = View.GONE }
-        root.addView(tvCountLabel, wide())
-
-        btn = pill(Ui.LILAC, Ui.INK, 20f)
-        root.addView(btn, wide(28))
-        tvHint = label("Включай музыку в любом приложении — друзья услышат то же, что и ты", 15f, Ui.DIM).apply {
-            setLineSpacing(px(3).toFloat(), 1f)
-        }
-        root.addView(tvHint, wide(16))
-
-        // кто просится в эфир — сразу под кнопкой, это главное во время эфира
+        // кто просится в эфир — наверху, это главное во время эфира
         reqBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        root.addView(reqBox, wide(6))
+        root.addView(reqBox, wide())
 
-        // QR на светлой карточке
-        ivQr = ImageView(this)
-        qrCard = FrameLayout(this).apply {
-            background = shape(Ui.MILK, 24); visibility = View.GONE
-            setPadding(px(16), px(16), px(16), px(16))
-            addView(ivQr, FrameLayout.LayoutParams(px(200), px(200)))
+        // сцена: круглая кнопка по центру свободного места
+        val stage = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+        btn = PulseButton(this)
+        stage.addView(btn, LinearLayout.LayoutParams(px(290), px(290)))
+        tvCaption = label("В эфир", 18f, Ui.MILK, Ui.display).apply { gravity = Gravity.CENTER; letterSpacing = -0.02f }
+        stage.addView(tvCaption, wide(-14))
+        tvCount = label("0", 44f, Ui.LILAC, Ui.display).apply { gravity = Gravity.CENTER; visibility = View.GONE }
+        stage.addView(tvCount, wide(-10))
+        tvCountLabel = label("", 14f, Ui.DIM).apply {
+            gravity = Gravity.CENTER; visibility = View.GONE; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
         }
-        root.addView(qrCard, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            .apply { topMargin = px(26); gravity = Gravity.CENTER_HORIZONTAL })
-        tvLink = label("", 15f, Ui.LILAC, Typeface.DEFAULT_BOLD).apply {
-            gravity = Gravity.CENTER; visibility = View.GONE; setPadding(0, px(8), 0, px(8))
-            // ссылка всегда в одну строку: шрифт уменьшается до 10sp, дальше — многоточие в середине
-            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
-            setAutoSizeTextTypeUniformWithConfiguration(10, 15, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
-        }
-        root.addView(tvLink, wide(14))
-        btnShare = pill(Ui.PANEL, Ui.MILK, 16f).apply { text = "Позвать друзей"; visibility = View.GONE }
-        root.addView(btnShare, wide(8))
+        stage.addView(tvCountLabel, wide(6))
+        root.addView(stage, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f).apply { topMargin = px(8); bottomMargin = px(8) })
 
-        tvStatus = label("", 15f, Ui.DIM).apply { setLineSpacing(px(3).toFloat(), 1f); visibility = View.GONE }
-        root.addView(tvStatus, wide(22))
+        tvHint = label("Включай музыку в любом приложении — друзья услышат то же, что и ты", 15f, Ui.DIM).apply {
+            gravity = Gravity.CENTER; setLineSpacing(px(3).toFloat(), 1f); setPadding(px(12), 0, px(12), 0)
+        }
+        root.addView(tvHint, wide())
+
+        // карточка «Позови друзей»: QR + ссылка + кнопки
+        shareCard = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL; visibility = View.GONE
+            background = shape(Ui.PANEL, 22); setPadding(px(14), px(14), px(14), px(14))
+        }
+        ivQr = ImageView(this).apply {
+            background = shape(Ui.MILK, 14); setPadding(px(7), px(7), px(7), px(7))
+            contentDescription = "QR-код эфира, нажми, чтобы увеличить"
+        }
+        shareCard.addView(ivQr, LinearLayout.LayoutParams(px(100), px(100)))
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(px(14), 0, 0, 0) }
+        col.addView(label("Позови друзей", 15f, Ui.MILK, Ui.bold))
+        tvLink = label("", 13f, Ui.LILAC, Ui.bold).apply {
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.MIDDLE; setPadding(0, px(6), 0, px(10))
+            setOnClickListener { copyLink() }
+        }
+        col.addView(tvLink, wide())
+        val mini = LinearLayout(this)
+        mini.addView(chipButton("Поделиться", Ui.BG, Ui.MILK).apply { setOnClickListener { share() } })
+        mini.addView(chipButton("Копировать", Ui.BG, Ui.MILK).apply { setOnClickListener { copyLink() } },
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = px(8) })
+        col.addView(mini)
+        shareCard.addView(col, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        root.addView(shareCard, wide())
+
+        tvStatus = label("", 13f, Ui.DIM).apply { setLineSpacing(px(2).toFloat(), 1f); visibility = View.GONE; gravity = Gravity.CENTER }
+        root.addView(tvStatus, wide(12))
 
         return ScrollView(this).apply { setBackgroundColor(Ui.BG); isFillViewport = true; addView(root) }
+    }
+
+    /** QR на весь экран — чтобы друг рядом мог навести камеру. */
+    private fun bigQr() {
+        val url = link(CaptureService.status) ?: return
+        val d = android.app.Dialog(this)
+        d.setContentView(ImageView(this).apply {
+            setImageBitmap(qr(url)); background = shape(Ui.MILK, 24); setPadding(px(18), px(18), px(18), px(18))
+            setOnClickListener { d.dismiss() }
+        }, android.view.ViewGroup.LayoutParams(px(320), px(320)))
+        d.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+        d.show()
     }
 
     private fun renderRequests(list: List<CaptureService.Request>) {
@@ -264,16 +299,12 @@ class MainActivity : Activity() {
         shownRequests = list
         reqBox.removeAllViews()
         for (r in list) {
-            val card = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                background = shape(Ui.PANEL, 20)
-                setPadding(px(16), px(14), px(16), px(14))
-            }
-            card.addView(label("${r.name} хочет подключиться", 17f, Ui.MILK, Typeface.DEFAULT_BOLD))
+            val card = card(22, 16)
+            card.addView(label("${r.name} хочет подключиться", 16f, Ui.MILK, Ui.bold))
             card.addView(label(if (r.viaWifi) "Из твоей Wi-Fi сети" else "По ссылке на эфир", 14f, Ui.DIM).apply { setPadding(0, px(4), 0, 0) })
             val row = LinearLayout(this).apply { setPadding(0, px(12), 0, 0) }
             fun choice(t: String, allow: Boolean, fill: Int, ink: Int) = pill(fill, ink, 15f).apply {
-                text = t; setPadding(0, px(12), 0, px(12))
+                text = t; setPadding(0, px(13), 0, px(13))
                 setOnClickListener {
                     startService(Intent(this@MainActivity, CaptureService::class.java)
                         .setAction(CaptureService.ACTION_DECIDE)
@@ -284,7 +315,7 @@ class MainActivity : Activity() {
             row.addView(View(this), LinearLayout.LayoutParams(px(10), 1))
             row.addView(choice("Отклонить", false, Ui.BG, Ui.MILK), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             card.addView(row)
-            reqBox.addView(card, wide(10))
+            reqBox.addView(card, wide(14))
         }
     }
 

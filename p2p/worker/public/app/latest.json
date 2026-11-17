@@ -1,8 +1,8 @@
 {
-  "versionCode": 12,
-  "versionName": "0.7.1",
-  "url": "wavecast.apk?v=12",
-  "sha256": "05f81ec8b8b96a9479855ad969f13e6ad1bda36134191570421f1f57d86dcbe0",
-  "size": 1036984,
-  "notes": "Настройки на отдельном экране, обновление в одно нажатие"
+  "versionCode": 13,
+  "versionName": "0.8.0",
+  "url": "wavecast.apk?v=13",
+  "sha256": "b8adb253d6d0d25c85783e70812f561f2de3f9bf19b306ee1bb120b4cbc38d79",
+  "size": 1131570,
+  "notes": "Новый дизайн: круглая кнопка эфира, фирменный шрифт, настройки по группам"
 }

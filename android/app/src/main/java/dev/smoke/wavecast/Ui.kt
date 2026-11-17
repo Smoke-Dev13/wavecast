@@ -26,8 +26,18 @@ object Ui {
     val PANEL = Color.parseColor("#2A2640")
     val DIM = Color.parseColor("#9C96B0")
 
-    val display: Typeface = Typeface.create("sans-serif-black", Typeface.NORMAL)
-    val medium: Typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+    /** Фирменные шрифты (как на странице слушателя), лежат в assets/fonts. */
+    lateinit var display: Typeface; private set
+    lateinit var medium: Typeface; private set
+    lateinit var bold: Typeface; private set
+
+    fun init(ctx: android.content.Context) {
+        if (::display.isInitialized) return
+        fun load(f: String, fallback: Typeface) = runCatching { Typeface.createFromAsset(ctx.assets, "fonts/$f") }.getOrDefault(fallback)
+        display = load("Unbounded-ExtraBold.ttf", Typeface.create("sans-serif-black", Typeface.NORMAL))
+        medium = load("Onest-Medium.ttf", Typeface.create("sans-serif-medium", Typeface.NORMAL))
+        bold = load("Onest-Bold.ttf", Typeface.DEFAULT_BOLD)
+    }
 }
 
 fun Activity.px(v: Int) = (v * resources.displayMetrics.density).toInt()
@@ -37,6 +47,7 @@ fun Activity.shape(fill: Int, radius: Int): Drawable = GradientDrawable().apply 
 }
 
 fun Activity.paintBars() {
+    Ui.init(this)
     window.statusBarColor = Ui.BG
     window.navigationBarColor = Ui.BG
 }
@@ -57,6 +68,21 @@ fun Activity.label(t: String, size: Float, color: Int = Ui.MILK, face: Typeface 
     text = t; textSize = size; setTextColor(color); typeface = face; includeFontPadding = false
 }
 
+/** Скруглённая карточка-группа. */
+fun Activity.card(radius: Int = 22, pad: Int = 16) = LinearLayout(this).apply {
+    orientation = LinearLayout.VERTICAL
+    background = shape(Ui.PANEL, radius)
+    setPadding(px(pad), px(pad), px(pad), px(pad))
+}
+
+/** Маленькая кнопка-«таблетка» для карточек. */
+fun Activity.chipButton(t: String, fill: Int, ink: Int) = Button(this).apply {
+    text = t; isAllCaps = false; textSize = 14f; typeface = Ui.bold; setTextColor(ink)
+    stateListAnimator = null; background = shape(fill, 99); minHeight = 0; minimumHeight = 0; minWidth = 0; minimumWidth = 0
+    setPadding(px(16), px(10), px(16), px(10))
+    pressable(this)
+}
+
 fun Activity.field(hint: String) = EditText(this).apply {
     this.hint = hint; setSingleLine(); textSize = 16f; typeface = Ui.medium
     inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
@@ -66,14 +92,14 @@ fun Activity.field(hint: String) = EditText(this).apply {
 }
 
 fun Activity.pill(fill: Int, ink: Int, size: Float) = Button(this).apply {
-    isAllCaps = false; textSize = size; typeface = Typeface.DEFAULT_BOLD; setTextColor(ink)
+    isAllCaps = false; textSize = size; typeface = Ui.bold; setTextColor(ink); letterSpacing = 0f
     stateListAnimator = null; background = shape(fill, 99)
     setPadding(px(20), px(17), px(20), px(17))
     pressable(this)
 }
 
 fun Activity.toggle(t: String) = Switch(this).apply {
-    text = t; textSize = 16f; setTextColor(Ui.MILK); typeface = Ui.medium
+    text = t; textSize = 16f; setTextColor(Ui.MILK); typeface = Ui.medium; showText = false
     val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf())
     thumbTintList = ColorStateList(states, intArrayOf(Ui.LILAC, Ui.DIM))
     trackTintList = ColorStateList(states, intArrayOf(Ui.LILAC, Ui.PANEL))

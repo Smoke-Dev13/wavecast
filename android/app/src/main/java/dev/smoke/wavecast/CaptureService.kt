@@ -80,6 +80,8 @@ class CaptureService : Service() {
 
         private val main = Handler(Looper.getMainLooper())
         @Volatile var status = Status(); private set
+        /** Громкость эфира 0..1 — для пульсации кнопки на главном экране. */
+        @Volatile var level = 0f; private set
         var listener: ((Status) -> Unit)? = null
 
         private fun publish(s: Status) {
@@ -270,12 +272,26 @@ class CaptureService : Service() {
                     if (r < 0) throw IllegalStateException("read=$r")
                     off += r
                 }
-                if (off == size) for (s in sinks) s.audio(buf)
+                if (off == size) {
+                    level = rms(buf)
+                    for (s in sinks) s.audio(buf)
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "capture failed", e)
             main.post { fail("Захват остановлен: ${e.message}") }
         }
+    }
+
+    /** RMS по каждому 8-му кадру, с запасом усилено до 0..1. */
+    private fun rms(b: ByteArray): Float {
+        var sum = 0.0; var n = 0
+        var i = 0
+        while (i + 1 < b.size) {
+            val v = ((b[i + 1].toInt() shl 8) or (b[i].toInt() and 0xFF)).toShort() / 32768.0
+            sum += v * v; n++; i += 32
+        }
+        return if (n == 0) 0f else (Math.sqrt(sum / n) * 3.0).coerceAtMost(1.0).toFloat()
     }
 
     private fun fail(msg: String) {
@@ -286,6 +302,7 @@ class CaptureService : Service() {
 
     private fun stopAll() {
         capturing = false
+        level = 0f
         runCatching { recorder?.stop() }
         runCatching { recorder?.release() }
         recorder = null
