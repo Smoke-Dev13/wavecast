@@ -9,3 +9,4 @@ local.properties
 .idea/
 node_modules/
 .wrangler/
+build-nogradle/

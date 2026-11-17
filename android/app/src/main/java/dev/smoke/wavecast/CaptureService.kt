@@ -28,7 +28,7 @@ import kotlin.concurrent.thread
 
 /**
  * Foreground-сервис: захватывает звук всех приложений (AudioPlaybackCapture)
- * и раздаёт его в локальную сеть и/или на relay-сервер.
+ * и раздаёт его слушателям: напрямую по ссылке (P2P) и в локальную сеть.
  */
 class CaptureService : Service() {
 
@@ -36,10 +36,6 @@ class CaptureService : Service() {
         val running: Boolean = false,
         val localUrls: List<String> = emptyList(),
         val localListeners: Int = 0,
-        val relayEnabled: Boolean = false,
-        val relayConnected: Boolean = false,
-        val relayListeners: Int = 0,
-        val relayError: String? = null,
         val p2pUrl: String? = null,          // ссылка для слушателей
         val p2pConnected: Boolean = false,   // есть связь с сигнальным сервисом
         val p2pListeners: Int = 0,
@@ -54,8 +50,6 @@ class CaptureService : Service() {
         const val EXTRA_DATA = "data"
         const val EXTRA_LOCAL = "local"
         const val EXTRA_PORT = "port"
-        const val EXTRA_RELAY_URL = "relayUrl"
-        const val EXTRA_RELAY_KEY = "relayKey"
         const val EXTRA_SERVICE = "service"
         const val EXTRA_ROOM = "room"
         const val EXTRA_HOST_KEY = "hostKey"
@@ -133,15 +127,6 @@ class CaptureService : Service() {
             st = st.copy(p2pUrl = P2PHost.listenUrl(service, room))
             p2p = P2PHost(this, port, base, room, intent.getStringExtra(EXTRA_HOST_KEY).orEmpty()) { ok, n, err ->
                 publish(status.copy(p2pConnected = ok, p2pListeners = n, p2pError = err))
-                updateNotification()
-            }
-        }
-
-        val relayUrl = intent.getStringExtra(EXTRA_RELAY_URL).orEmpty()
-        if (relayUrl.isNotBlank()) {
-            st = st.copy(relayEnabled = true)
-            sinks += RelayClient(relayUrl, intent.getStringExtra(EXTRA_RELAY_KEY).orEmpty()) { ok, n, err ->
-                publish(status.copy(relayConnected = ok, relayListeners = n, relayError = err))
                 updateNotification()
             }
         }
@@ -244,7 +229,6 @@ class CaptureService : Service() {
         val parts = mutableListOf<String>()
         if (s.p2pUrl != null) parts += if (s.p2pConnected || s.p2pListeners > 0) "по ссылке: ${s.p2pListeners}" else "по ссылке: нет связи"
         if (s.localUrls.isNotEmpty()) parts += "Wi-Fi: ${s.localListeners}"
-        if (s.relayEnabled) parts += if (s.relayConnected) "Relay: ${s.relayListeners}" else "Relay: нет связи"
         return "Слушателей — " + parts.joinToString(", ")
     }
 

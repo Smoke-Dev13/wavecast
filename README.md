@@ -34,7 +34,7 @@ git clone https://github.com/Smoke-Dev13/wavecast && cd wavecast/p2p/worker && n
 
 ## Для больших эфиров: relay-сервер
 
-Когда слушателей больше, чем тянет канал телефона, звук можно раздавать через свой сервер (`relay/`): комнаты, Opus, ИИ-плагины, кластер на Redis. В приложении этот режим пока скрыт; источник с ПК (`source/`) работает с relay уже сейчас.
+Когда слушателей больше, чем тянет канал телефона, звук можно раздавать через свой сервер (`relay/`): комнаты, Opus, ИИ-плагины, кластер на Redis. В приложение этот режим пока не встроен; с relay работает источник с ПК (`source/`).
 
 ```bash
 cd relay && cp .env.example .env && sed -i "s/^WAVECAST_KEY=.*/WAVECAST_KEY=$(openssl rand -hex 16)/; s/^WAVECAST_ADMIN_TOKEN=.*/WAVECAST_ADMIN_TOKEN=$(openssl rand -hex 24)/" .env && docker compose up -d --build && grep -E "KEY|TOKEN" .env
@@ -106,6 +106,8 @@ cd relay && pip install -e ".[ai,redis,dev]" && python -m pytest -q     # тес
 python -m wavecast                                                       # локальный запуск
 ```
 Сигнальный сервис локально: `cd p2p/worker && npx wrangler dev`.
+
+Android без Gradle и SDK (Ubuntu/Debian): `android/build-nogradle.sh`.
 
 Android: `gradle -p android assembleRelease` (JDK 17, Android SDK 34). APK собирается в GitHub Actions при каждом push, релиз создаётся по тегу `v*`.
 

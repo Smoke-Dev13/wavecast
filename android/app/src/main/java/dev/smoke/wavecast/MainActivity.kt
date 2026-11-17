@@ -11,7 +11,6 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.LayerDrawable
 import android.annotation.SuppressLint
 import android.view.MotionEvent
 import android.widget.FrameLayout
@@ -130,9 +129,9 @@ class MainActivity : Activity() {
     private fun render(s: CaptureService.Status) {
         val on = s.running
         btn.text = if (on) "Закончить эфир" else "В эфир"
-        btn.background = sticker(if (on) GUM else LEMON, 99, 6)
+        btn.background = shape(if (on) MILK else LILAC, 99)
         tvLive.text = if (on) "в эфире" else "не в эфире"
-        tvLive.background = sticker(if (on) GUM else MILK, 99, 0, 2)
+        tvLive.setTextColor(if (on) CORAL else DIM)
         val total = s.p2pListeners + s.localListeners
         tvCount.visibility = if (on) View.VISIBLE else View.GONE
         tvCount.text = "$total"
@@ -164,30 +163,21 @@ class MainActivity : Activity() {
 
     private fun px(v: Int) = (v * resources.displayMetrics.density).toInt()
 
-    /** «Наклейка»: заливка с чернильной обводкой и жёсткой тенью со сдвигом. */
-    private fun sticker(fill: Int, radius: Int, shadow: Int = 5, stroke: Int = 3): Drawable {
-        fun shape(color: Int, line: Boolean) = GradientDrawable().apply {
-            setColor(color); cornerRadius = px(radius).toFloat()
-            if (line) setStroke(px(stroke), INK)
-        }
-        if (shadow == 0) return shape(fill, true)
-        return LayerDrawable(arrayOf(shape(INK, false), shape(fill, true))).apply {
-            setLayerInset(0, px(shadow), px(shadow), 0, 0)
-            setLayerInset(1, 0, 0, px(shadow), px(shadow))
-        }
+    private fun shape(fill: Int, radius: Int): Drawable = GradientDrawable().apply {
+        setColor(fill); cornerRadius = px(radius).toFloat()
     }
 
-    /** Кнопка «проваливается» в тень при нажатии. */
+    /** Кнопка слегка сжимается при нажатии. */
     @SuppressLint("ClickableViewAccessibility")
-    private fun pressable(v: View, shadow: Int) = v.setOnTouchListener { _, e ->
-        val d = when (e.actionMasked) { MotionEvent.ACTION_DOWN -> px(shadow) * 0.6f; MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> 0f; else -> return@setOnTouchListener false }
-        v.animate().translationX(d).translationY(d).setDuration(60).start()
+    private fun pressable(v: View) = v.setOnTouchListener { _, e ->
+        val k = when (e.actionMasked) { MotionEvent.ACTION_DOWN -> 0.96f; MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> 1f; else -> return@setOnTouchListener false }
+        v.animate().scaleX(k).scaleY(k).setDuration(70).start()
         false
     }
 
     private fun buildUi(): View {
-        window.statusBarColor = UV
-        window.navigationBarColor = UV
+        window.statusBarColor = BG
+        window.navigationBarColor = BG
         val display = Typeface.create("sans-serif-black", Typeface.NORMAL)
         val medium = Typeface.create("sans-serif-medium", Typeface.NORMAL)
         val root = LinearLayout(this).apply {
@@ -200,15 +190,15 @@ class MainActivity : Activity() {
         fun field(hint: String) = EditText(this).apply {
             this.hint = hint; setSingleLine(); textSize = 16f; typeface = medium
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-            setTextColor(INK); setHintTextColor(Color.parseColor("#8A84A0"))
-            background = sticker(MILK, 16, 0)
+            setTextColor(MILK); setHintTextColor(DIM)
+            background = shape(PANEL, 16)
             setPadding(px(16), px(14), px(16), px(14))
         }
-        fun button(fill: Int, size: Float, shadow: Int) = Button(this).apply {
-            isAllCaps = false; textSize = size; typeface = display; setTextColor(INK); letterSpacing = -0.02f
-            stateListAnimator = null; background = sticker(fill, 99, shadow)
-            setPadding(px(20), px(16), px(20 + shadow), px(16 + shadow))
-            pressable(this, shadow)
+        fun button(fill: Int, ink: Int, size: Float) = Button(this).apply {
+            isAllCaps = false; textSize = size; typeface = Typeface.DEFAULT_BOLD; setTextColor(ink)
+            stateListAnimator = null; background = shape(fill, 99)
+            setPadding(px(20), px(17), px(20), px(17))
+            pressable(this)
         }
         fun wide(top: Int = 0) = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -219,50 +209,47 @@ class MainActivity : Activity() {
 
         // шапка: марка слева, статус эфира справа
         val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        head.addView(text("WaveCast", 15f, LEMON, display), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        tvLive = text("не в эфире", 13f, INK, Typeface.DEFAULT_BOLD).apply { setPadding(px(12), px(7), px(12), px(7)) }
+        head.addView(text("WaveCast", 15f, MILK, display), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        tvLive = text("не в эфире", 13f, DIM, Typeface.DEFAULT_BOLD).apply { setPadding(px(12), px(7), px(12), px(7)); background = shape(PANEL, 99) }
         head.addView(tvLive)
         root.addView(head, wide())
 
-        root.addView(text("Твоё радио", 44f, MILK, display).apply {
-            letterSpacing = -0.04f
-            setShadowLayer(0.01f, px(3).toFloat(), px(3).toFloat(), INK)
-        }, wide(top = 26))
+        root.addView(text("Твоё радио", 42f, MILK, display).apply { letterSpacing = -0.04f }, wide(top = 26))
 
-        tvCount = text("0", 72f, LEMON, display).apply { setShadowLayer(0.01f, px(4).toFloat(), px(4).toFloat(), INK); visibility = View.GONE }
+        tvCount = text("0", 72f, LILAC, display).apply { visibility = View.GONE }
         root.addView(tvCount, wide(top = 14))
-        tvCountLabel = text("слушают сейчас", 16f).apply { visibility = View.GONE }
+        tvCountLabel = text("слушают сейчас", 16f, DIM).apply { visibility = View.GONE }
         root.addView(tvCountLabel, wide())
 
-        lblService = text("Адрес сервиса", 13f)
+        lblService = text("Адрес сервиса", 13f, DIM)
         root.addView(lblService, wide(top = 22))
         etService = field("wavecast.твой-аккаунт.workers.dev")
         root.addView(etService, wide(top = 6))
-        lblRoom = text("Название эфира", 13f)
+        lblRoom = text("Название эфира", 13f, DIM)
         root.addView(lblRoom, wide(top = 14))
         etRoom = field("party")
         root.addView(etRoom, wide(top = 6))
 
-        btn = button(LEMON, 22f, 6)
+        btn = button(LILAC, INK, 20f)
         root.addView(btn, wide(top = 24))
 
-        // QR-наклейка, слегка повёрнутая
+        // QR на светлой карточке
         ivQr = ImageView(this)
         qrCard = FrameLayout(this).apply {
-            background = sticker(MILK, 22, 6); rotation = -2f; visibility = View.GONE
-            setPadding(px(14), px(14), px(20), px(20))
+            background = shape(MILK, 24); visibility = View.GONE
+            setPadding(px(16), px(16), px(16), px(16))
             addView(ivQr, FrameLayout.LayoutParams(px(200), px(200)))
         }
         root.addView(qrCard, wrap(top = 26, center = true))
-        tvLink = text("", 15f, LEMON, Typeface.DEFAULT_BOLD).apply { gravity = Gravity.CENTER; visibility = View.GONE; setPadding(0, px(8), 0, px(8)) }
+        tvLink = text("", 15f, LILAC, Typeface.DEFAULT_BOLD).apply { gravity = Gravity.CENTER; visibility = View.GONE; setPadding(0, px(8), 0, px(8)) }
         root.addView(tvLink, wide(top = 14))
-        btnShare = button(MINT, 17f, 4).apply { text = "Позвать друзей"; visibility = View.GONE }
+        btnShare = button(PANEL, MILK, 16f).apply { text = "Позвать друзей"; visibility = View.GONE }
         root.addView(btnShare, wide(top = 8))
 
-        tvStatus = text("", 15f).apply { setLineSpacing(px(3).toFloat(), 1f) }
+        tvStatus = text("", 15f, DIM).apply { setLineSpacing(px(3).toFloat(), 1f) }
         root.addView(tvStatus, wide(top = 22))
 
-        return ScrollView(this).apply { setBackgroundColor(UV); isFillViewport = true; addView(root) }
+        return ScrollView(this).apply { setBackgroundColor(BG); isFillViewport = true; addView(root) }
     }
 
     private fun qr(text: String): Bitmap {
@@ -290,12 +277,13 @@ class MainActivity : Activity() {
     companion object {
         private const val REQ_PERMS = 1
         private const val REQ_PROJECTION = 2
-        private val UV = Color.parseColor("#5B2EFF")
-        private val INK = Color.parseColor("#17102E")
-        private val LEMON = Color.parseColor("#FFE94A")
-        private val GUM = Color.parseColor("#FF5FA2")
-        private val MILK = Color.parseColor("#FFF8EC")
-        private val MINT = Color.parseColor("#7CF5C4")
+        private val BG = Color.parseColor("#191627")
+        private val INK = Color.parseColor("#0F0D1A")
+        private val LILAC = Color.parseColor("#BFB0F5")
+        private val CORAL = Color.parseColor("#F0A08C")
+        private val MILK = Color.parseColor("#EFEAE2")
+        private val PANEL = Color.parseColor("#2A2640")
+        private val DIM = Color.parseColor("#9C96B0")
         private val ROOM_RE = Regex("^[a-z0-9][a-z0-9_-]{0,47}$")
         private const val ROOM_CHARS = "abcdefghjkmnpqrstuvwxyz23456789"
         private const val KEY_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"

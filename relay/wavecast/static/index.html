@@ -3,69 +3,69 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#5B2EFF">
+<meta name="theme-color" content="#191627">
 <title>WaveCast</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Crect width=%2224%22 height=%2224%22 rx=%226%22 fill=%22%235B2EFF%22/%3E%3Cpath fill=%22%23FFE94A%22 d=%22M5 10h2.4v4H5zM9 7h2.4v10H9zM13 4h2.4v16H13zM17 9h2.4v6H17z%22/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Crect width=%2224%22 height=%2224%22 rx=%226%22 fill=%22%23191627%22/%3E%3Cpath fill=%22%23BFB0F5%22 d=%22M5 10h2.4v4H5zM9 7h2.4v10H9zM13 4h2.4v16H13zM17 9h2.4v6H17z%22/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@800;900&family=Onest:wght@500;600;700&display=swap">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;800&family=Onest:wght@400;600;700&display=swap">
 <style>
-  :root { --uv: #5B2EFF; --ink: #17102E; --lemon: #FFE94A; --gum: #FF5FA2; --milk: #FFF8EC; --mint: #7CF5C4;
+  :root { --uv: #191627; --ink: #0F0D1A; --lemon: #BFB0F5; --gum: #F0A08C; --milk: #EFEAE2; --mint: #2A2640; --dim: #9C96B0;
           --display: "Unbounded", "Arial Black", "Segoe UI Black", system-ui, sans-serif;
           --body: "Onest", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   * { box-sizing: border-box; }
   html { background: var(--uv); }
-  body { margin: 0; min-height: 100vh; min-height: 100dvh; color: var(--milk); font: 500 16px/1.45 var(--body);
-         background: radial-gradient(circle at 1px 1px, #ffffff24 1.5px, transparent 2px) 0 0 / 18px 18px, var(--uv);
+  body { margin: 0; min-height: 100vh; min-height: 100dvh; color: var(--milk); font: 400 16px/1.45 var(--body);
+         background: radial-gradient(120% 70% at 50% 45%, #2B2547 0%, var(--uv) 70%);
          display: flex; justify-content: center; }
   main { width: min(100%, 440px); padding: 20px 22px 28px; display: flex; flex-direction: column; }
   header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-  .brand { font: 800 15px/1 var(--display); color: var(--lemon); letter-spacing: -.01em; }
-  .pill { font: 700 13px/1 var(--body); padding: 8px 12px; border-radius: 99px; border: 2.5px solid var(--ink);
-          background: var(--milk); color: var(--ink); display: flex; align-items: center; gap: 7px; white-space: nowrap; }
-  .pill i { width: 9px; height: 9px; border-radius: 50%; background: #9a93ad; }
-  .pill.live { background: var(--gum); }
-  .pill.live i { background: var(--milk); animation: blink 1.2s steps(2) infinite; }
-  @keyframes blink { 50% { opacity: .15; } }
-  h1 { margin: 26px 0 6px; font: 900 clamp(40px, 15vw, 76px)/.95 var(--display); letter-spacing: -.04em;
-       color: var(--milk); text-shadow: 4px 4px 0 var(--ink); overflow-wrap: anywhere; }
-  h1.long { font-size: clamp(28px, 9vw, 44px); text-shadow: 3px 3px 0 var(--ink); }
-  #state { margin: 0; min-height: 24px; font-weight: 600; }
-  #state.err { color: var(--lemon); }
+  .brand { font: 800 15px/1 var(--display); color: var(--milk); letter-spacing: -.01em; }
+  .pill { font: 700 13px/1 var(--body); padding: 8px 12px; border-radius: 99px;
+          background: var(--mint); color: var(--dim); display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
+  .pill.live { color: var(--milk); }
+  .pill.live i { background: var(--gum); animation: blink 2s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+  h1 { margin: 26px 0 6px; font: 800 clamp(38px, 14vw, 72px)/1 var(--display); letter-spacing: -.04em;
+       color: var(--milk); overflow-wrap: anywhere; }
+  h1.long { font-size: clamp(28px, 9vw, 44px); }
+  #state { margin: 0; min-height: 24px; color: var(--dim); }
+  #state.err { color: var(--gum); }
   .stage { position: relative; width: min(100%, 330px); aspect-ratio: 1; margin: 14px auto 6px; display: grid; place-items: center; }
   .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-  #btn { position: relative; width: 56%; aspect-ratio: 1; border-radius: 50%; border: 4px solid var(--ink); cursor: pointer;
-         background: var(--lemon); color: var(--ink); box-shadow: 7px 7px 0 var(--ink); display: grid; place-items: center;
+  #btn { position: relative; width: 56%; aspect-ratio: 1; border-radius: 50%; border: 0; cursor: pointer;
+         background: var(--lemon); color: var(--ink); box-shadow: 0 14px 40px #0008; display: grid; place-items: center;
          transition: transform .08s, box-shadow .08s, background .15s; -webkit-tap-highlight-color: transparent; }
-  #btn:active { transform: translate(5px, 5px); box-shadow: 2px 2px 0 var(--ink); }
-  #btn:focus-visible, .sticker:focus-visible, input:focus-visible { outline: 3px solid var(--milk); outline-offset: 4px; }
+  #btn:active { transform: scale(.96); }
+  #btn:focus-visible, .sticker:focus-visible, input:focus-visible { outline: 2px solid var(--milk); outline-offset: 4px; }
   #btn svg { width: 42%; height: 42%; }
   #btn .stop { display: none; }
-  #btn.on { background: var(--gum); }
+  #btn.on { background: var(--milk); }
   #btn.on .play { display: none; } #btn.on .stop { display: block; }
-  #btn:disabled { background: #b9b3c9; cursor: default; }
-  #hint { text-align: center; margin: 0 0 18px; font: 800 15px/1.2 var(--display); letter-spacing: -.02em; }
-  .now { display: none; align-items: center; gap: 12px; margin: 0 8px 18px 0; padding: 12px 14px; background: var(--mint); color: var(--ink);
-         border: 3px solid var(--ink); border-radius: 18px; box-shadow: 5px 5px 0 var(--ink); transform: rotate(-1.5deg); }
-  .now img { width: 52px; height: 52px; border-radius: 10px; border: 2.5px solid var(--ink); object-fit: cover; flex: none; }
+  #btn:disabled { background: var(--mint); color: var(--dim); cursor: default; box-shadow: none; }
+  #hint { text-align: center; margin: 0 0 20px; font: 600 15px/1.2 var(--body); color: var(--dim); }
+  .now { display: none; align-items: center; gap: 12px; margin: 0 0 18px; padding: 12px 14px; background: var(--mint); color: var(--milk);
+         border-radius: 18px; }
+  .now img { width: 52px; height: 52px; border-radius: 10px; object-fit: cover; flex: none; }
   .now a { color: inherit; text-decoration: none; min-width: 0; }
-  .now .t { font: 800 16px/1.2 var(--display); letter-spacing: -.02em; overflow-wrap: anywhere; } .now .a { font-weight: 600; }
-  .dj { display: none; margin: 0 8px 18px 0; padding: 12px 14px; background: var(--milk); color: var(--ink); font-weight: 600;
-        border: 3px solid var(--ink); border-radius: 18px 18px 18px 4px; box-shadow: 5px 5px 0 var(--ink); }
+  .now .t { font: 800 16px/1.2 var(--display); letter-spacing: -.02em; overflow-wrap: anywhere; } .now .a { color: var(--dim); }
+  .dj { display: none; margin: 0 0 18px; padding: 12px 14px; background: var(--mint); color: var(--milk);
+        border-radius: 18px 18px 18px 4px; }
   .vol { display: flex; align-items: center; gap: 12px; }
-  .vol svg { width: 22px; height: 22px; flex: none; }
-  input[type=range] { -webkit-appearance: none; appearance: none; flex: 1; height: 14px; border-radius: 99px; margin: 0;
-         background: var(--ink); border: 0; }
-  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; border-radius: 50%;
-         background: var(--lemon); border: 3.5px solid var(--ink); cursor: pointer; }
-  input[type=range]::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: var(--lemon); border: 3.5px solid var(--ink); cursor: pointer; }
-  .tune { display: flex; align-items: center; gap: 12px; margin-top: 14px; font-size: 14px; font-weight: 600; }
+  .vol svg { width: 22px; height: 22px; flex: none; color: var(--dim); }
+  input[type=range] { -webkit-appearance: none; appearance: none; flex: 1; height: 6px; border-radius: 99px; margin: 0;
+         background: var(--mint); border: 0; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%;
+         background: var(--milk); border: 0; cursor: pointer; }
+  input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--milk); border: 0; cursor: pointer; }
+  .tune { display: flex; align-items: center; gap: 12px; margin-top: 14px; font-size: 14px; color: var(--dim); }
   .tune output { width: 62px; text-align: right; }
   .foot { margin-top: 22px; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
-  .sticker { white-space: nowrap; flex: none; font: 800 14px/1 var(--display); letter-spacing: -.02em; padding: 14px 18px; border-radius: 99px; cursor: pointer;
-         background: var(--milk); color: var(--ink); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink);
-         transition: transform .08s, box-shadow .08s; }
-  .sticker:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 var(--ink); }
-  .meta { font-size: 13px; font-weight: 600; text-align: right; opacity: .85; line-height: 1.5; }
+  .sticker { white-space: nowrap; flex: none; font: 700 15px/1 var(--body); padding: 14px 20px; border-radius: 99px; cursor: pointer;
+         background: var(--mint); color: var(--milk); border: 0;
+         transition: transform .08s; }
+  .sticker:active { transform: scale(.96); }
+  .meta { font-size: 13px; text-align: right; color: var(--dim); line-height: 1.5; }
   @media (prefers-reduced-motion: reduce) { .pill.live i { animation: none; } #btn, .sticker { transition: none; } }
 </style>
 </head>
@@ -121,21 +121,22 @@
     function frame() {
       const dpr = Math.min(devicePixelRatio || 1, 2), w = cv.clientWidth * dpr;
       if (cv.width !== w) cv.width = cv.height = w;
-      const data = getData(), c = w / 2, base = w * 0.335, amp = w * 0.14;
+      const data = getData(), c = w / 2, base = w * 0.31, amp = w * 0.11;
       g.clearRect(0, 0, w, w);
-      for (const [color, k, off] of [[col('--ink'), 1, 5 * dpr], [col('--gum'), 1, 0], [col('--mint'), .45, 0]]) {
+      // три мягких полупрозрачных слоя: дальний реагирует сильнее всего
+      for (const [alpha, k, grow] of [[.10, 1.6, .05], [.16, 1, .02], [.26, .5, 0]]) {
         g.beginPath();
         for (let i = 0; i <= N; i++) {
           const j = i % N, m = j < N / 2 ? j : N - j;               // зеркалим, чтобы кольцо смыкалось
           const v = data ? data[2 + Math.floor(m * data.length / N * 0.9)] / 255 : 0;
-          if (i < N && color === col('--ink')) lvl[j] += (v - lvl[j]) * 0.35;
+          if (i < N && k === 1.6) lvl[j] += (v - lvl[j]) * 0.3;
           const soft = (lvl[(j + N - 1) % N] + 2 * lvl[j] + lvl[(j + 1) % N]) / 4;   // сглаживаем соседние лучи
-          const r = base + (still ? 0 : soft) * amp * k + (k < 1 ? -w * 0.02 : 0), a = j / N * Math.PI * 2 - Math.PI / 2;
-          g[i ? 'lineTo' : 'moveTo'](c + off + r * Math.cos(a), c + off + r * Math.sin(a));
+          const r = base + w * grow + (still ? 0 : soft) * amp * k, a = j / N * Math.PI * 2 - Math.PI / 2;
+          g[i ? 'lineTo' : 'moveTo'](c + r * Math.cos(a), c + r * Math.sin(a));
         }
-        g.closePath(); g.fillStyle = color; g.fill();
-        if (off === 0 && k === 1) { g.lineWidth = 3.5 * dpr; g.strokeStyle = col('--ink'); g.stroke(); }
+        g.closePath(); g.globalAlpha = alpha; g.fillStyle = col('--lemon'); g.fill();
       }
+      g.globalAlpha = 1;
       if (!still || !frame.done) requestAnimationFrame(frame);
       frame.done = true;
     }
