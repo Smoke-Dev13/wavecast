@@ -42,6 +42,8 @@ class MainActivity : Activity() {
     private lateinit var peopleBox: LinearLayout
     private lateinit var peopleTitle: TextView
     private lateinit var tvNow: TextView
+    private lateinit var nowRow: LinearLayout
+    private lateinit var ivNow: ImageView
     private lateinit var floats: android.widget.FrameLayout
     private lateinit var npCard: LinearLayout
     private lateinit var npTitle: TextView
@@ -174,8 +176,10 @@ class MainActivity : Activity() {
         tvRoom.visibility = if (on) View.GONE else View.VISIBLE
         tvHint.visibility = tvRoom.visibility
 
-        tvNow.visibility = if (on && st.nowTitle != null) View.VISIBLE else View.GONE
-        tvNow.text = "♪  " + st.nowTitle + (st.nowArtist?.takeIf { it.isNotBlank() }?.let { " — $it" } ?: "")
+        nowRow.visibility = if (on && st.nowTitle != null) View.VISIBLE else View.GONE
+        tvNow.text = (if (st.nowCover == null) "♪  " else "") + st.nowTitle + (st.nowArtist?.takeIf { it.isNotBlank() }?.let { " — $it" } ?: "")
+        ivNow.visibility = if (st.nowCover != null) View.VISIBLE else View.GONE
+        if (st.nowCover != null) ivNow.setImageBitmap(st.nowCover)
         npCard.visibility = if (!on && s.showNowPlaying && !NowPlaying.allowed(this)) View.VISIBLE else View.GONE
         if (s.nowPlayingAsked) {
             // уже отправляли в настройки, а доступа нет — скорее всего, «Настройки с ограниченным доступом»
@@ -322,11 +326,18 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER; visibility = View.GONE; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
         }
         stage.addView(tvCountLabel, wide(6))
-        tvNow = label("", 14f, Ui.MILK).apply {
-            gravity = Gravity.CENTER; visibility = View.GONE; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
-            setPadding(px(16), 0, px(16), 0)
+        // что играет: маленькая обложка (нажми — откроется крупно) и название
+        nowRow = LinearLayout(this).apply { gravity = Gravity.CENTER; visibility = View.GONE; setPadding(px(16), 0, px(16), 0) }
+        ivNow = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP; clipToOutline = true; background = shape(Ui.PANEL, 8)
+            contentDescription = "Обложка, нажми, чтобы увеличить"
+            setOnClickListener { bigCover() }
         }
-        stage.addView(tvNow, wide(10))
+        nowRow.addView(ivNow, LinearLayout.LayoutParams(px(36), px(36)).apply { marginEnd = px(10) })
+        tvNow = label("", 14f, Ui.MILK).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
+        nowRow.addView(tvNow, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        nowRow.setOnClickListener { bigCover() }
+        stage.addView(nowRow, wide(12))
         root.addView(stage, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f).apply { topMargin = px(8); bottomMargin = px(8) })
 
         tvHint = label("Включай музыку в любом приложении — друзья услышат то же, что и ты", 15f, Ui.DIM).apply {
@@ -377,6 +388,32 @@ class MainActivity : Activity() {
         root.addView(tvStatus, wide(12))
 
         return ScrollView(this).apply { setBackgroundColor(Ui.BG); isFillViewport = true; addView(root) }
+    }
+
+    /** Обложка крупно, с названием — как QR. */
+    private fun bigCover() {
+        val st = CaptureService.status
+        val art = st.nowCover ?: return
+        val d = android.app.Dialog(this)
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
+            setOnClickListener { d.dismiss() }
+        }
+        box.addView(ImageView(this).apply {
+            setImageBitmap(art); scaleType = ImageView.ScaleType.CENTER_CROP; clipToOutline = true; background = shape(Ui.PANEL, 20)
+        }, LinearLayout.LayoutParams(px(320), px(320)))
+        box.addView(label(st.nowTitle ?: "", 18f, Ui.MILK, Ui.display).apply {
+            gravity = Gravity.CENTER; maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; letterSpacing = -0.02f
+        }, LinearLayout.LayoutParams(px(320), LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = px(16) })
+        st.nowArtist?.takeIf { it.isNotBlank() }?.let {
+            box.addView(label(it, 15f, Ui.DIM).apply { gravity = Gravity.CENTER; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END },
+                LinearLayout.LayoutParams(px(320), LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = px(4) })
+        }
+        d.setContentView(box)
+        d.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.parseColor("#F00F0D1A")))
+        d.window?.setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT)
+        box.gravity = Gravity.CENTER
+        d.show()
     }
 
     /** QR на весь экран — чтобы друг рядом мог навести камеру. */

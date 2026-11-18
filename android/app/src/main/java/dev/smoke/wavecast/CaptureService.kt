@@ -45,6 +45,7 @@ class CaptureService : Service() {
         val wifiPeople: List<Person> = emptyList(),  // кто слушает в Wi-Fi сети
         val nowTitle: String? = null,                // что играет (видят пущенные слушатели)
         val nowArtist: String? = null,
+        val nowCover: android.graphics.Bitmap? = null,
         val autoAllow: Boolean = false,
         val error: String? = null,
     )
@@ -191,8 +192,8 @@ class CaptureService : Service() {
 
         // «Сейчас играет»: только если ведущий включил и дал доступ к уведомлениям
         if (intent.getBooleanExtra(EXTRA_NOW_PLAYING, true)) {
-            nowPlaying = NowPlaying(this) { title, artist, json ->
-                publish(status.copy(nowTitle = title, nowArtist = artist))
+            nowPlaying = NowPlaying(this) { title, artist, json, art ->
+                publish(status.copy(nowTitle = title, nowArtist = artist, nowCover = art))
                 p2p?.track(json)
                 local?.track(json?.let { org.json.JSONObject(it).put("type", "track").toString() })
             }.also { it.start() }

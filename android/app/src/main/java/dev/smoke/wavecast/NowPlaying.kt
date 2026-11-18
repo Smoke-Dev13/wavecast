@@ -25,7 +25,7 @@ class NowPlayingListener : NotificationListenerService()
  * Следит за плеерами (Spotify, YouTube, ВК, Яндекс Музыка…) и сообщает, что играет:
  * {"title","artist","cover":"data:image/jpeg;base64,…"} или null. Мессенджеры и сам WaveCast пропускаем.
  */
-class NowPlaying(private val ctx: Context, private val onChange: (title: String?, artist: String?, json: String?) -> Unit) {
+class NowPlaying(private val ctx: Context, private val onChange: (title: String?, artist: String?, json: String?, art: Bitmap?) -> Unit) {
 
     private val main = Handler(Looper.getMainLooper())
     private val msm = ctx.getSystemService(MediaSessionManager::class.java)
@@ -78,7 +78,7 @@ class NowPlaying(private val ctx: Context, private val onChange: (title: String?
         val md = playing?.metadata
         val title = md?.let { it.getString(MediaMetadata.METADATA_KEY_TITLE) ?: it.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE) }
             ?.trim()?.take(120)
-        if (title.isNullOrEmpty()) { publish(null, null, null); return@Runnable }
+        if (title.isNullOrEmpty()) { publish(null, null, null, null); return@Runnable }
         val artist = (md.getString(MediaMetadata.METADATA_KEY_ARTIST)
             ?: md.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
             ?: md.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE))?.trim()?.take(120)
@@ -89,22 +89,27 @@ class NowPlaying(private val ctx: Context, private val onChange: (title: String?
         if (key == lastKey) return@Runnable
         lastKey = key
         val o = JSONObject().put("title", title).put("artist", artist ?: "")
-        cover(art)?.let { o.put("cover", it) }
-        publish(title, artist, o.toString())
+        val small = scaled(art)
+        cover(small)?.let { o.put("cover", it) }
+        publish(title, artist, o.toString(), small)
     }
 
-    private fun publish(title: String?, artist: String?, json: String?) {
+    private fun publish(title: String?, artist: String?, json: String?, art: Bitmap?) {
         if (json == null) { if (lastKey == null) return; lastKey = null }
-        onChange(title, artist, json)
+        onChange(title, artist, json, art)
     }
 
-    /** Обложка → JPEG 256×256 максимум, ~10–20 КБ в base64: влезает в одно сообщение. */
-    private fun cover(b: Bitmap?): String? = runCatching {
+    /** Обложка до 640×640: чётко и во весь экран, ~50–80 КБ в base64 — одно сообщение по каналу данных. */
+    private fun scaled(b: Bitmap?): Bitmap? = runCatching {
         if (b == null || b.width <= 0) return null
-        val k = 256f / maxOf(b.width, b.height)
-        val small = if (k < 1f) Bitmap.createScaledBitmap(b, (b.width * k).toInt().coerceAtLeast(1), (b.height * k).toInt().coerceAtLeast(1), true) else b
+        val k = 640f / maxOf(b.width, b.height)
+        if (k < 1f) Bitmap.createScaledBitmap(b, (b.width * k).toInt().coerceAtLeast(1), (b.height * k).toInt().coerceAtLeast(1), true) else b
+    }.getOrNull()
+
+    private fun cover(small: Bitmap?): String? = runCatching {
+        if (small == null) return null
         val out = ByteArrayOutputStream()
-        small.compress(Bitmap.CompressFormat.JPEG, 75, out)
+        small.compress(Bitmap.CompressFormat.JPEG, 80, out)
         "data:image/jpeg;base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
     }.getOrNull()
 

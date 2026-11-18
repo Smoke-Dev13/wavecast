@@ -62,11 +62,27 @@
   .who input { font: 600 17px/1.2 var(--body); color: var(--milk); background: var(--mint); border: 0; border-radius: 14px;
          padding: 14px 16px; width: 100%; }
   .who input::placeholder { color: var(--dim); font-weight: 400; }
-  .reacts { display: none; justify-content: space-between; gap: 6px; margin: 0 0 18px; }
-  .reacts button { flex: 1; font-size: 22px; line-height: 1; padding: 10px 0; border: 0; border-radius: 14px; cursor: pointer;
-         background: var(--mint); transition: transform .08s; -webkit-tap-highlight-color: transparent; }
-  .reacts button:active { transform: scale(.9); }
-  .reacts button:focus-visible { outline: 2px solid var(--milk); outline-offset: 2px; }
+  .ctl { display: flex; align-items: center; gap: 14px; }
+  .ctl .vol { flex: 1; }
+  .rx { display: none; position: relative; flex: none; }
+  #rxBtn { width: 48px; height: 48px; border-radius: 50%; border: 0; background: var(--mint); font-size: 22px; line-height: 1;
+           cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform .08s; user-select: none; -webkit-user-select: none; }
+  #rxBtn:active { transform: scale(.92); }
+  .stack { position: absolute; bottom: 58px; left: 50%; display: flex; flex-direction: column; gap: 4px; padding: 6px; z-index: 5;
+           background: var(--mint); border-radius: 30px; box-shadow: 0 14px 34px #000a;
+           opacity: 0; pointer-events: none; transform-origin: bottom center; transform: translateX(-50%) translateY(10px) scale(.9);
+           transition: opacity .16s, transform .16s; }
+  .stack.open { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0) scale(1); }
+  .stack button { width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; font-size: 26px; line-height: 1; cursor: pointer; }
+  .stack button:hover, .stack button:focus-visible { background: #ffffff14; outline: none; }
+  .now img { cursor: zoom-in; }
+  .viewer { position: fixed; inset: 0; z-index: 20; background: #0F0D1Af2; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; padding: 24px; gap: 6px; cursor: zoom-out; }
+  .viewer[hidden] { display: none; }
+  .viewer img { width: min(86vw, 64vh, 560px); aspect-ratio: 1; object-fit: cover; border-radius: 20px; box-shadow: 0 24px 60px #000c; margin-bottom: 14px; }
+  .viewer .vt { font: 800 20px/1.25 var(--display); letter-spacing: -.02em; text-align: center; max-width: 86vw; }
+  .viewer .va { color: var(--dim); text-align: center; max-width: 86vw; }
+  @media (prefers-reduced-motion: reduce) { .stack { transition: none; } }
   .floats { position: absolute; inset: 0; pointer-events: none; overflow: visible; z-index: 2; }
   .floats span { position: absolute; bottom: 30%; font-size: 30px; animation: rise 2.2s ease-out forwards; }
   .floats small { display: block; font: 600 11px/1 var(--body); color: var(--dim); text-align: center; margin-top: 2px; }
@@ -113,16 +129,22 @@
     <input id="name" maxlength="24" autocomplete="nickname" placeholder="Например, Аня">
   </div>
   <div class="now" id="now"><img id="cover" alt=""><div><div class="t" id="title"></div><div class="a" id="artist"></div></div></div>
-  <div class="reacts" id="reacts" role="group" aria-label="Реакции"></div>
-  <label class="vol">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 4V5L7 9H3zm12.5 3a4 4 0 0 0-2-3.46v6.92a4 4 0 0 0 2-3.46z"/></svg>
-    <input id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Громкость">
-  </label>
+  <div class="ctl">
+    <label class="vol">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 4V5L7 9H3zm12.5 3a4 4 0 0 0-2-3.46v6.92a4 4 0 0 0 2-3.46z"/></svg>
+      <input id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Громкость">
+    </label>
+    <div class="rx" id="reacts">
+      <div class="stack" id="stack" role="menu" aria-label="Реакции"></div>
+      <button id="rxBtn" aria-label="Реакции" aria-haspopup="menu" aria-expanded="false">😊</button>
+    </div>
+  </div>
   <div class="foot">
     <button class="sticker" id="share">Позвать друзей</button>
     <div class="meta" id="link"></div>
   </div>
   <audio id="audio" playsinline></audio>
+  <div class="viewer" id="viewer" hidden role="dialog" aria-label="Обложка"><img id="viewerImg" alt=""><div class="vt" id="viewerT"></div><div class="va" id="viewerA"></div></div>
 </main>
 <script>
 (() => {
@@ -343,19 +365,60 @@
     box.appendChild(el);
   }
 
-  for (const e of EMOJI) {
-    const b = document.createElement('button');
-    b.textContent = e; b.setAttribute('aria-label', 'Реакция ' + e);
-    b.onclick = () => {
-      const now = Date.now();
-      if (!dc || dc.readyState !== 'open' || now - lastReact < 600) return;
-      lastReact = now;
-      dc.send(JSON.stringify({ type: 'react', e }));
-      float(e);
+  // Реакции: одна кнопка, по нажатию над ней всплывает стопка смайликов (как в YouTube).
+  // На кнопке остаётся последняя реакция; долгое нажатие отправляет её ещё раз без стопки.
+  function setupReactions(send) {
+    const btn = $('rxBtn'), stack = $('stack');
+    let last = null, timer = null, longFired = false;
+    const open = on => { stack.classList.toggle('open', on); btn.setAttribute('aria-expanded', on); };
+    const fire = e => {
+      if (!send(e)) return;
+      float(e); last = e; btn.textContent = e;
       if (navigator.vibrate) navigator.vibrate(12);
     };
-    $('reacts').appendChild(b);
+    for (const e of EMOJI) {
+      const b = document.createElement('button');
+      b.textContent = e; b.setAttribute('role', 'menuitem'); b.setAttribute('aria-label', 'Реакция ' + e);
+      b.onclick = ev => { ev.stopPropagation(); open(false); fire(e); };
+      stack.appendChild(b);
+    }
+    btn.addEventListener('pointerdown', () => {
+      longFired = false;
+      if (last) timer = setTimeout(() => { longFired = true; open(false); fire(last); }, 450);
+    });
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) btn.addEventListener(ev, () => clearTimeout(timer));
+    btn.addEventListener('contextmenu', e => e.preventDefault());
+    btn.onclick = ev => {
+      ev.stopPropagation();
+      if (longFired) { longFired = false; return; }
+      open(!stack.classList.contains('open'));
+    };
+    document.addEventListener('click', ev => { if (!stack.contains(ev.target)) open(false); });
+    document.addEventListener('keydown', ev => { if (ev.key === 'Escape') open(false); });
   }
+
+  // Обложка крупно поверх страницы: нажатие на обложку открывает, нажатие или «Назад» — закрывает
+  function setupViewer() {
+    const v = $('viewer');
+    const fill = () => { $('viewerImg').src = $('cover').src; $('viewerT').textContent = $('title').textContent; $('viewerA').textContent = $('artist').textContent; };
+    const close = () => { if (v.hidden) return; v.hidden = true; if (history.state && history.state.viewer) history.back(); };
+    $('cover').addEventListener('click', e => {
+      e.preventDefault(); e.stopPropagation();
+      if (!$('cover').getAttribute('src')) return;
+      fill(); v.hidden = false; history.pushState({ viewer: 1 }, '');
+    });
+    v.addEventListener('click', close);
+    addEventListener('popstate', () => { v.hidden = true; });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+    // трек сменился, пока обложка открыта — обновляем
+    new MutationObserver(() => { if (!v.hidden) fill(); }).observe($('cover'), { attributes: true, attributeFilter: ['src'] });
+  }
+  setupReactions(e => {
+    const now = Date.now();
+    if (!dc || dc.readyState !== 'open' || now - lastReact < 600) return false;
+    lastReact = now; dc.send(JSON.stringify({ type: 'react', e })); return true;
+  });
+  setupViewer();
 
   function ui() {
     $('btn').className = wanted ? 'on' : '';

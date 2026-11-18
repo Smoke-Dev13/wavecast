@@ -22,12 +22,17 @@
     <input id="name" maxlength="24" autocomplete="nickname" placeholder="Например, Аня">
   </div>
   <div class="now" id="now"><img id="cover" alt=""><a id="tlink" target="_blank" rel="noopener"><div class="t" id="title"></div><div class="a" id="artist"></div></a></div>
-  <div class="reacts" id="reacts" role="group" aria-label="Реакции"></div>
   <div class="dj" id="dj"></div>
-  <label class="vol">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 4V5L7 9H3zm12.5 3a4 4 0 0 0-2-3.46v6.92a4 4 0 0 0 2-3.46z"/></svg>
-    <input id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Громкость">
-  </label>
+  <div class="ctl">
+    <label class="vol">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 4V5L7 9H3zm12.5 3a4 4 0 0 0-2-3.46v6.92a4 4 0 0 0 2-3.46z"/></svg>
+      <input id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Громкость">
+    </label>
+    <div class="rx" id="reacts">
+      <div class="stack" id="stack" role="menu" aria-label="Реакции"></div>
+      <button id="rxBtn" aria-label="Реакции" aria-haspopup="menu" aria-expanded="false">😊</button>
+    </div>
+  </div>
   <label class="tune">Запас от заиканий
     <input id="buf" type="range" min="80" max="1500" step="10" value="250" aria-label="Буфер">
     <output id="bufv">250 мс</output>
@@ -36,6 +41,7 @@
     <button class="sticker" id="share">Позвать друзей</button>
     <div class="meta"><span id="fmt"></span><br>задержка <span id="lat">–</span><br>провалов <span id="und">0</span></div>
   </div>
+  <div class="viewer" id="viewer" hidden role="dialog" aria-label="Обложка"><img id="viewerImg" alt=""><div class="vt" id="viewerT"></div><div class="va" id="viewerA"></div></div>
 </main>
 <script>
 (() => {
@@ -250,19 +256,13 @@ RING_JS
     el.addEventListener('animationend', () => el.remove());
     box.appendChild(el);
   }
-  for (const e of EMOJI) {
-    const b = document.createElement('button');
-    b.textContent = e; b.setAttribute('aria-label', 'Реакция ' + e);
-    b.onclick = () => {
-      const now = Date.now();
-      if (!ws || ws.readyState !== 1 || now - lastReact < 600) return;
-      lastReact = now;
-      ws.send(JSON.stringify({ type: 'react', e }));
-      float(e);
-      if (navigator.vibrate) navigator.vibrate(12);
-    };
-    $('reacts').appendChild(b);
-  }
+RX_JS
+  setupReactions(e => {
+    const now = Date.now();
+    if (!ws || ws.readyState !== 1 || now - lastReact < 600) return false;
+    lastReact = now; ws.send(JSON.stringify({ type: 'react', e })); return true;
+  });
+  setupViewer();
   opusSupported().then(ok => { wantOpus = ok; connect(); });
 })();
 </script>
