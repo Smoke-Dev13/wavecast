@@ -41,6 +41,8 @@ class LocalServer(
     private val onListeners: (Int) -> Unit,
     private val onRequest: (id: String, name: String) -> Unit = { _, _ -> },
     private val onRequestGone: (id: String) -> Unit = {},
+    private val onPeople: (List<Pair<String, String>>) -> Unit = {},
+    private val onReaction: (name: String, emoji: String) -> Unit = { _, _ -> },
 ) : Sink {
 
     /** Токен для служебного подключения P2P-страницы. */
@@ -53,6 +55,7 @@ class LocalServer(
     private val denied = ConcurrentHashMap.newKeySet<String>()
     private val nextId = java.util.concurrent.atomic.AtomicInteger()
     @Volatile private var formatMsg: String? = null
+    @Volatile private var trackMsg: String? = null
     @Volatile private var running = true
     private val server = ServerSocket().apply { reuseAddress = true; bind(InetSocketAddress(port)) }
 
@@ -77,6 +80,26 @@ class LocalServer(
         clients.forEach { if (it.approved) it.binary(chunk) }
     }
 
+    /** Кто сейчас слушает: (id, имя). */
+    fun people(): List<Pair<String, String>> = clients.filter { it.approved && !it.internal }.map { it.id to it.name }
+
+    /** Отключить слушателя: больше не пустим до конца эфира. */
+    fun kick(id: String) {
+        val c = clients.firstOrNull { it.id == id && !it.internal } ?: return
+        denied.add(c.cid)
+        c.approved = false
+        c.text("""{"type":"kicked"}""")
+        c.finish()                                   // сначала уйдёт «kicked», потом закроется соединение
+        broadcastStatus()
+    }
+
+    /** Что играет: JSON {"type":"track",...} или null — убрать. */
+    fun track(json: String?) {
+        trackMsg = json
+        val msg = json ?: """{"type":"track","title":null}"""
+        clients.forEach { if (it.approved && !it.internal) it.text(msg) }
+    }
+
     /** Ответ ведущего на запрос; id — тот, что пришёл в onRequest. */
     fun decide(id: String, allow: Boolean) {
         val c = clients.firstOrNull { it.id == id && it.pendingName != null } ?: return
@@ -90,18 +113,36 @@ class LocalServer(
         c.approved = true
         c.text("""{"type":"approved"}""")
         formatMsg?.let { c.text(it) }
+        trackMsg?.let { c.text(it) }
         broadcastStatus()
     }
 
-    private fun onJoin(c: Client, json: String) {
-        if (c.approved || c.internal) return
+    private fun onText(c: Client, json: String) {
+        if (c.internal) return
         val o = runCatching { org.json.JSONObject(json) }.getOrNull() ?: return
-        if (o.optString("type") != "join") return
+        when (o.optString("type")) {
+            "join" -> if (!c.approved) onJoin(c, o)
+            "react" -> if (c.approved) onReact(c, o.optString("e"))
+        }
+    }
+
+    private fun onReact(c: Client, e: String) {
+        if (e !in EMOJI) return
+        val now = System.currentTimeMillis()
+        if (now - c.lastReact < 600) return
+        c.lastReact = now
+        onReaction(c.name, e)
+        val msg = org.json.JSONObject().put("type", "react").put("e", e).put("name", c.name).toString()
+        clients.forEach { if (it !== c && it.approved && !it.internal) it.text(msg) }
+    }
+
+    private fun onJoin(c: Client, o: org.json.JSONObject) {
         val name = o.optString("name").filter { it >= ' ' && it != '<' && it != '>' }.trim().take(24).ifEmpty { "Гость" }
+        c.name = name
         c.cid = o.optString("cid").filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(32).ifEmpty { c.id }
         when {
+            c.cid in denied -> c.text("""{"type":"denied"}""")   // отклонённых и отключённых не пускаем даже в режиме «всех»
             autoAllow || c.cid in allowed -> approve(c)
-            c.cid in denied -> c.text("""{"type":"denied"}""")
             c.pendingName != null -> c.text("""{"type":"waiting"}""")
             clients.count { it.pendingName != null } >= MAX_PENDING -> c.text("""{"type":"busy"}""")
             else -> { c.pendingName = name; c.text("""{"type":"waiting"}"""); onRequest(c.id, name) }
@@ -121,6 +162,7 @@ class LocalServer(
         val s = statusJson()
         clients.forEach { it.text(s) }
         onListeners(count)
+        onPeople(people())
     }
 
     private fun handle(sock: Socket) {
@@ -195,7 +237,7 @@ class LocalServer(
                 val payload = ByteArray(len.toInt()).also { readFully(input, it) }
                 if (mask != null) for (i in payload.indices) payload[i] = (payload[i].toInt() xor mask[i % 4].toInt()).toByte()
                 when (opcode) {
-                    0x1 -> onJoin(c, String(payload, Charsets.UTF_8))
+                    0x1 -> onText(c, String(payload, Charsets.UTF_8))
                     0x8 -> break
                     0x9 -> c.frame(0xA, payload)
                 }
@@ -213,6 +255,8 @@ class LocalServer(
         @Volatile var approved = false
         @Volatile var pendingName: String? = null
         @Volatile var cid: String = id
+        @Volatile var name: String = "Гость"
+        @Volatile var lastReact = 0L
         private val q = LinkedBlockingQueue<Pair<Int, ByteArray>>()
         @Volatile private var alive = true
         private val writer = thread(name = "wc-write", isDaemon = true) {
@@ -233,6 +277,9 @@ class LocalServer(
             frame(0x2, b)
         }
         fun frame(op: Int, data: ByteArray) { if (alive) q.offer(op to data) }
+
+        /** Закрыть после отправки всего, что уже в очереди. */
+        fun finish() { if (alive) q.offer(-1 to ByteArray(0)) }
 
         fun shutdown() {
             if (!alive) return
@@ -260,6 +307,7 @@ class LocalServer(
         private const val WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
         private const val MAX_QUEUE = 40
         private const val MAX_PENDING = 5
+        val EMOJI = setOf("🔥", "❤️", "😂", "👏", "🎉", "😍")
         private val LAN_IFACES = listOf("wlan", "swlan", "ap", "softap", "wifi", "rndis", "usb", "ncm", "eth", "bt-pan", "p2p")
 
         private fun readLine(input: InputStream): String? {

@@ -62,6 +62,17 @@
   .who input { font: 600 17px/1.2 var(--body); color: var(--milk); background: var(--mint); border: 0; border-radius: 14px;
          padding: 14px 16px; width: 100%; }
   .who input::placeholder { color: var(--dim); font-weight: 400; }
+  .reacts { display: none; justify-content: space-between; gap: 6px; margin: 0 0 18px; }
+  .reacts button { flex: 1; font-size: 22px; line-height: 1; padding: 10px 0; border: 0; border-radius: 14px; cursor: pointer;
+         background: var(--mint); transition: transform .08s; -webkit-tap-highlight-color: transparent; }
+  .reacts button:active { transform: scale(.9); }
+  .reacts button:focus-visible { outline: 2px solid var(--milk); outline-offset: 2px; }
+  .floats { position: absolute; inset: 0; pointer-events: none; overflow: visible; z-index: 2; }
+  .floats span { position: absolute; bottom: 30%; font-size: 30px; animation: rise 2.2s ease-out forwards; }
+  .floats small { display: block; font: 600 11px/1 var(--body); color: var(--dim); text-align: center; margin-top: 2px; }
+  @keyframes rise { 0% { transform: translateY(0) scale(.6); opacity: 0; } 12% { opacity: 1; transform: translateY(-10px) scale(1); }
+                    100% { transform: translateY(-190px) scale(1.1); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .floats span { animation-duration: 1.2s; } }
   .vol { display: flex; align-items: center; gap: 12px; }
   .vol svg { width: 22px; height: 22px; flex: none; color: var(--dim); }
   input[type=range] { -webkit-appearance: none; appearance: none; flex: 1; height: 6px; border-radius: 99px; margin: 0;
@@ -90,6 +101,7 @@
   <p id="state">подключаюсь…</p>
   <div class="stage">
     <canvas id="viz"></canvas>
+    <div class="floats" id="floats" aria-hidden="true"></div>
     <button id="btn" aria-label="Слушать">
       <svg class="play" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 3.5v17a1 1 0 0 0 1.5.86l14-8.5a1 1 0 0 0 0-1.72l-14-8.5A1 1 0 0 0 7 3.5z"/></svg>
       <svg class="stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor"/></svg>
@@ -100,7 +112,8 @@
     <label for="name">Как тебя зовут? Ведущий увидит имя в запросе</label>
     <input id="name" maxlength="24" autocomplete="nickname" placeholder="Например, Аня">
   </div>
-  <div class="now" id="now"><div><div class="t" id="title"></div><div class="a" id="artist"></div></div></div>
+  <div class="now" id="now"><img id="cover" alt=""><div><div class="t" id="title"></div><div class="a" id="artist"></div></div></div>
+  <div class="reacts" id="reacts" role="group" aria-label="Реакции"></div>
   <label class="vol">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 4V5L7 9H3zm12.5 3a4 4 0 0 0-2-3.46v6.92a4 4 0 0 0 2-3.46z"/></svg>
     <input id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Громкость">
@@ -118,7 +131,8 @@
   const room = m ? decodeURIComponent(m[1]).toLowerCase() : '';
   const audio = $('audio');
   let ws, pc, ice = [], live = false, wanted = false, retry = 500, rejoin, fatal = false, analyser, bins;
-  let asked = false, waiting = false;
+  let asked = false, waiting = false, dc = null, lastReact = 0, blocked = false;
+  const EMOJI = ['🔥', '❤️', '😂', '👏', '🎉', '😍'];
   const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch {} return null; };
   // id устройства: чтобы после обрыва связи ведущему не приходил повторный запрос
   let cid = store('wc-cid');
@@ -202,7 +216,7 @@
     ws.onopen = () => { retry = 500; if (asked) join(); };
     ws.onclose = () => {
       if (fatal) return;
-      if (!pc || pc.connectionState !== 'connected') setState('Нет связи с сервисом, переподключаюсь…');
+      if (!blocked && (!pc || pc.connectionState !== 'connected')) setState('Нет связи с сервисом, переподключаюсь…');
       setTimeout(connect, retry); retry = Math.min(retry * 2, 8000);
     };
     ws.onmessage = ev => onSignal(JSON.parse(ev.data)).catch(e => console.warn('signal', e));
@@ -212,6 +226,7 @@
     switch (d.type) {
       case 'hello':
         ice = d.iceServers || []; live = d.live;
+        if (blocked) break;
         if (!pc || pc.connectionState !== 'connected') {
           setLive(live);
           setState(!live ? 'Эфир ещё не начался. Страница сама подключится, когда ведущий выйдет.'
@@ -224,6 +239,12 @@
         const p = pc = new RTCPeerConnection({ iceServers: ice });
         p.onicecandidate = e => { if (e.candidate) send({ type: 'ice', candidate: e.candidate }); };
         p.ontrack = e => { audio.srcObject = e.streams[0] || new MediaStream([e.track]); if (wanted) play(); };
+        p.ondatachannel = e => {   // канал от ведущего: что играет и реакции
+          dc = e.channel;
+          dc.onopen = () => { $('reacts').style.display = 'flex'; };
+          dc.onclose = () => { $('reacts').style.display = 'none'; };
+          dc.onmessage = m => { try { onData(JSON.parse(m.data)); } catch {} };
+        };
         p.onconnectionstatechange = () => { if (p === pc) onLink(p.connectionState); };
         await p.setRemoteDescription(d);
         const ans = await p.createAnswer();
@@ -237,24 +258,24 @@
         break;
       case 'status':
         live = d.live !== false;
-        if (!live) { drop(); waiting = false; $('now').style.display = 'none'; setLive(false); setState('Эфир закончился. Останься на странице — подключу, когда ведущий вернётся.'); }
+        if (!live && !blocked) { drop(); waiting = false; $('now').style.display = 'none'; setLive(false); setState('Эфир закончился. Останься на странице — подключу, когда ведущий вернётся.'); }
         else if (pc && pc.connectionState === 'connected') setLive(true, d.listeners);
-        if (d.title) {
-          $('title').textContent = $('title').title = d.title; $('artist').textContent = $('artist').title = d.artist || ''; $('now').style.display = 'flex';
-          if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: d.title, artist: d.artist || 'WaveCast' });
-        }
         ui();
         break;
       case 'waiting':
         waiting = true; setState('Ждём, пока ведущий пустит…'); ui();
         break;
       case 'denied':
-        asked = false; waiting = false; wanted = false; drop();
+        asked = false; waiting = false; wanted = false; blocked = true; drop(); silence();
         setState('Ведущий не пустил в эфир', true); $('who').style.display = ''; ui();
         break;
       case 'busy':
         asked = false; waiting = false; wanted = false;
         setState('У ведущего сейчас много запросов. Попробуй через минуту.', true); ui();
+        break;
+      case 'kicked':
+        asked = false; waiting = false; wanted = false; blocked = true; drop(); silence(); showTrack(null);
+        setState('Ведущий отключил тебя от эфира', true); $('who').style.display = ''; ui();
         break;
       case 'full':
         setState('Мест нет: у ведущего максимум слушателей. Попробуй позже.', true);
@@ -282,7 +303,59 @@
     } catch {}
   }
 
-  function drop() { clearTimeout(rejoin); if (pc) { pc.onconnectionstatechange = null; pc.close(); pc = null; } $('link').textContent = ''; }
+  // отказ или отключение: глушим плеер, чтобы не висела «играющая» пустая дорожка
+  function silence() { audio.pause(); audio.srcObject = null; }
+
+  function drop() {
+    clearTimeout(rejoin);
+    if (pc) { pc.onconnectionstatechange = null; pc.close(); pc = null; }
+    dc = null; $('reacts').style.display = 'none'; $('link').textContent = '';
+  }
+
+  function onData(d) {
+    if (d.type === 'track') showTrack(d.title ? d : null);
+    if (d.type === 'react' && EMOJI.includes(d.e)) float(d.e, d.name);
+  }
+
+  function showTrack(t) {
+    $('now').style.display = t ? 'flex' : 'none';
+    if (!t) { document.title = room + ' — WaveCast'; if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: room, artist: 'WaveCast' }); return; }
+    $('title').textContent = $('title').title = t.title;
+    $('artist').textContent = $('artist').title = t.artist || '';
+    const okCover = /^data:image\/(jpeg|png|webp);base64,/.test(t.cover || '');
+    $('cover').style.display = okCover ? 'block' : 'none';
+    if (okCover) $('cover').src = t.cover;
+    document.title = t.title + (t.artist ? ' — ' + t.artist : '');
+    if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({
+      title: t.title, artist: t.artist || '', album: 'WaveCast · ' + room,
+      artwork: okCover ? [{ src: t.cover, sizes: '256x256', type: t.cover.slice(5, t.cover.indexOf(';')) }] : [] });
+  }
+
+  // летящая реакция над кнопкой
+  function float(e, name) {
+    const box = $('floats');
+    if (box.childElementCount > 24) return;
+    const el = document.createElement('span');
+    el.textContent = e;
+    if (name) { const n = document.createElement('small'); n.textContent = name.slice(0, 12); el.appendChild(n); }
+    el.style.left = (15 + Math.random() * 62) + '%';
+    el.addEventListener('animationend', () => el.remove());
+    box.appendChild(el);
+  }
+
+  for (const e of EMOJI) {
+    const b = document.createElement('button');
+    b.textContent = e; b.setAttribute('aria-label', 'Реакция ' + e);
+    b.onclick = () => {
+      const now = Date.now();
+      if (!dc || dc.readyState !== 'open' || now - lastReact < 600) return;
+      lastReact = now;
+      dc.send(JSON.stringify({ type: 'react', e }));
+      float(e);
+      if (navigator.vibrate) navigator.vibrate(12);
+    };
+    $('reacts').appendChild(b);
+  }
 
   function ui() {
     $('btn').className = wanted ? 'on' : '';
@@ -313,7 +386,7 @@
 
   $('btn').onclick = () => {
     wanted = !wanted;
-    if (wanted && !asked) { asked = true; store('wc-name', $('name').value.trim()); join(); }
+    if (wanted && !asked) { asked = true; blocked = false; store('wc-name', $('name').value.trim()); join(); }
     if (wanted && audio.srcObject) return play();
     if (!wanted) audio.pause();
     ui();
@@ -326,6 +399,20 @@
   };
 
   $('name').onkeydown = e => { if (e.key === 'Enter') $('btn').click(); };
+
+  // шторка и экран блокировки: пауза/продолжить
+  if ('mediaSession' in navigator) {
+    const toggle = want => { if (wanted !== want) $('btn').click(); };
+    for (const [a, f] of [['play', () => toggle(true)], ['pause', () => toggle(false)], ['stop', () => toggle(false)]])
+      try { navigator.mediaSession.setActionHandler(a, f); } catch {}
+    navigator.mediaSession.metadata = new MediaMetadata({ title: room, artist: 'WaveCast' });
+  }
+  // система могла поставить звук на паузу, пока страница была в фоне — продолжаем, если слушатель не нажимал стоп
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && wanted && audio.srcObject && audio.paused) play(); });
+  audio.addEventListener('pause', () => { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused'; });
+  audio.addEventListener('playing', () => { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing'; });
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+
   ui();
   connect();
 })();

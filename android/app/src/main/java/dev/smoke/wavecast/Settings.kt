@@ -20,6 +20,16 @@ class Settings(ctx: Context) {
         get() = p.getBoolean("autoAllow", false)
         set(v) = p.edit().putBoolean("autoAllow", v).apply()
 
+    /** Показывать слушателям название трека и обложку (нужен доступ к уведомлениям). */
+    var showNowPlaying: Boolean
+        get() = p.getBoolean("showNowPlaying", true)
+        set(v) = p.edit().putBoolean("showNowPlaying", v).apply()
+
+    /** Ведущий уже ответил на предложение «Покажи друзьям, что играет». */
+    var nowPlayingAsked: Boolean
+        get() = p.getBoolean("nowPlayingAsked", false)
+        set(v) = p.edit().putBoolean("nowPlayingAsked", v).apply()
+
     /** Ключ ведущего: закрепляет название эфира за этим телефоном. */
     val hostKey: String
         get() = p.getString("hostKey", null) ?: random(KEY_CHARS, 32).also { p.edit().putString("hostKey", it).apply() }

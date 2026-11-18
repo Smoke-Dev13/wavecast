@@ -20,6 +20,7 @@ class SettingsActivity : Activity() {
     private lateinit var etRoom: EditText
     private lateinit var etService: EditText
     private lateinit var swAuto: Switch
+    private lateinit var swNow: Switch
     private lateinit var tvUpdate: TextView
     private lateinit var btnUpdate: Button
 
@@ -35,7 +36,17 @@ class SettingsActivity : Activity() {
             if (CaptureService.status.running) startService(Intent(this, CaptureService::class.java)
                 .setAction(CaptureService.ACTION_AUTO).putExtra(CaptureService.EXTRA_AUTO, on))
         }
+        swNow.setOnCheckedChangeListener { _, on ->
+            s.showNowPlaying = on; s.nowPlayingAsked = true
+            if (on && !NowPlaying.allowed(this)) openListenerSettings(this)
+        }
         renderUpdate(Updater.available, null)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // переключатель включён, только если и настройка включена, и Android дал доступ
+        swNow.isChecked = s.showNowPlaying && NowPlaying.allowed(this)
     }
 
     override fun onPause() {
@@ -140,6 +151,9 @@ class SettingsActivity : Activity() {
         val g2 = group()
         swAuto = toggleRow(g2, "Пускать всех без вопросов", "Иначе каждый просится в эфир, а ты пускаешь его кнопкой в уведомлении")
 
+        divider(g2)
+        swNow = toggleRow(g2, "Показывать друзьям, что играет", "Название трека и обложка из твоего плеера. Android попросит доступ к уведомлениям — сами уведомления WaveCast не читает")
+
         section("О приложении")
         val g3 = group()
         val ver = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(16), px(14), px(12), px(14)) }
@@ -157,7 +171,20 @@ class SettingsActivity : Activity() {
         return ScrollView(this).apply { setBackgroundColor(Ui.BG); isFillViewport = true; addView(root) }
     }
 
-    companion object { private val LINE = android.graphics.Color.parseColor("#36314F") }
+    companion object {
+        private val LINE = android.graphics.Color.parseColor("#36314F")
+
+        /** Системный экран «Доступ к уведомлениям» сразу на WaveCast (Android 11+), иначе общий список. */
+        fun openListenerSettings(a: Activity) {
+            val cn = android.content.ComponentName(a, NowPlayingListener::class.java).flattenToString()
+            val direct = Intent("android.settings.NOTIFICATION_LISTENER_DETAIL_SETTINGS")
+                .putExtra("android.provider.extra.NOTIFICATION_LISTENER_COMPONENT_NAME", cn)
+            runCatching { a.startActivity(direct) }.onFailure {
+                a.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
+            }
+            Toast.makeText(a, "Включи WaveCast в списке и вернись назад", Toast.LENGTH_LONG).show()
+        }
+    }
 
     private fun toast(t: String) = Toast.makeText(this, t, Toast.LENGTH_LONG).show()
 }

@@ -14,6 +14,11 @@
 // Запросы на вход: слушатель шлёт join с именем и id устройства (cid). Если cid ещё не пускали,
 // приложение получает WaveCastHost.onRequest(id, name) и отвечает вызовом wcDecide(id, true|false).
 // Пущенные и отклонённые cid запоминаются до конца эфира, повторно не спрашиваем.
+//
+// Канал данных «meta» к каждому слушателю (только к пущенным): ведущий шлёт {type:"track"} — что играет,
+// слушатель шлёт {type:"react", e:"🔥"}; реакции расходятся остальным слушателям и в приложение.
+// Приложение: wcTrack(json|null) — сменился трек, wcKick(id) — отключить слушателя.
+// В onState приходит people: [{id, name}] — кто сейчас слушает.
 (() => {
   const P = new URLSearchParams(location.hash.slice(1));
   const signal = (P.get('signal') || '').replace(/^http/, 'ws').replace(/\/+$/, '');
@@ -27,11 +32,16 @@
   const RATE = 48000, CH = 2;
 
   const peers = new Map();   // id слушателя → RTCPeerConnection
+  const meta = new Map();    // id слушателя → {name, cid, dc, lastReact}
+  const EMOJI = ['🔥', '❤️', '😂', '👏', '🎉', '😍'];
+  let nowPlaying = null;     // {title, artist, cover} или null
   let sig, ice = [], track, stream, sigUp = false, error = null, retry = 500, fatal = false, lastStatus = '';
 
   const connected = () => [...peers.values()].filter(p => p.connectionState === 'connected').length;
   function report() {
-    const s = { signal: sigUp, listeners: connected(), pending: peers.size - connected(), requests: pending.size, error };
+    const people = [...peers.entries()].filter(([, p]) => p.connectionState === 'connected')
+      .map(([id]) => ({ id, name: (meta.get(id) || {}).name || 'Гость' }));
+    const s = { signal: sigUp, listeners: people.length, pending: peers.size - people.length, requests: pending.size, people, error };
     document.getElementById('log').textContent = JSON.stringify(s);
     try { window.WaveCastHost && window.WaveCastHost.onState(JSON.stringify(s)); } catch {}
     const st = JSON.stringify({ type: 'status', live: true, listeners: s.listeners });
@@ -98,6 +108,20 @@
 
   function close(id) { const p = peers.get(id); if (p) { p.onconnectionstatechange = null; p.close(); peers.delete(id); } }
 
+  const dcSend = (dc, o) => { try { if (dc && dc.readyState === 'open') dc.send(JSON.stringify(o)); } catch {} };
+  const toAll = (o, except) => { for (const [id, m] of meta) if (id !== except) dcSend(m.dc, o); };
+
+  // сообщения от слушателя по каналу данных
+  function onData(id, d) {
+    const m = meta.get(id);
+    if (!m || d.type !== 'react' || !EMOJI.includes(d.e)) return;
+    const now = Date.now();
+    if (now - (m.lastReact || 0) < 600) return;     // не чаще ~2 в секунду от одного слушателя
+    m.lastReact = now;
+    bridge('onReaction', m.name, d.e);
+    toAll({ type: 'react', e: d.e, name: m.name }, id);
+  }
+
   async function offer(id) {
     const old = peers.get(id);
     if (old && ['connected', 'connecting'].includes(old.connectionState)) return;   // уже слушает
@@ -106,6 +130,11 @@
     const pc = new RTCPeerConnection({ iceServers: ice });
     peers.set(id, pc);
     const sender = pc.addTrack(track, stream);
+    const m = meta.get(id) || { name: 'Гость', cid: id };
+    meta.set(id, m);
+    m.dc = pc.createDataChannel('meta');
+    m.dc.onopen = () => { if (nowPlaying) dcSend(m.dc, { type: 'track', ...nowPlaying }); };
+    m.dc.onmessage = e => { try { onData(id, JSON.parse(e.data)); } catch {} };
     pc.onicecandidate = e => { if (e.candidate) send({ to: id, type: 'ice', candidate: e.candidate }); };
     pc.onconnectionstatechange = () => {
       if (['failed', 'closed'].includes(pc.connectionState)) close(id);
@@ -128,7 +157,7 @@
       case 'answer': if (p && p.signalingState === 'have-local-offer') await p.setRemoteDescription({ type: 'answer', sdp: musicSdp(d.sdp) }); break;
       case 'ice': if (p && d.candidate) await p.addIceCandidate(d.candidate).catch(() => {}); break;
       case 'leave':
-        close(d.from);
+        close(d.from); meta.delete(d.from);
         if (pending.delete(d.from)) bridge('onRequestGone', d.from);
         report(); break;
       case 'error': fatal = true; error = d.message || d.code; report(); break;
@@ -139,8 +168,9 @@
 
   async function onJoin(d) {
     const id = d.from, cid = d.cid || id, name = (d.name || 'Гость').slice(0, 24);
+    meta.set(id, { ...(meta.get(id) || {}), name, cid });
+    if (denied.has(cid)) return send({ to: id, type: 'denied' });   // отклонённых и отключённых не пускаем даже в режиме «всех»
     if (auto || allowed.has(cid)) return offer(id);
-    if (denied.has(cid)) return send({ to: id, type: 'denied' });
     if (pending.has(id)) return send({ to: id, type: 'waiting' });
     if (pending.size >= MAX_PENDING) return send({ to: id, type: 'busy' });
     pending.set(id, { name, cid });
@@ -157,6 +187,19 @@
     (allow ? allowed : denied).add(r.cid);
     if (allow) offer(id); else send({ to: id, type: 'denied' });
     report();
+  };
+  // отключить слушателя: больше не пустим до конца эфира
+  window.wcKick = id => {
+    const m = meta.get(id);
+    if (m) denied.add(m.cid);
+    send({ to: id, type: 'kicked' });
+    close(id); meta.delete(id);
+    report();
+  };
+  // приложение сообщает, что играет: {"title","artist","cover"(data:)} или null
+  window.wcTrack = t => {
+    nowPlaying = t && t.title ? { title: t.title, artist: t.artist || '', cover: t.cover || '' } : null;
+    toAll({ type: 'track', ...(nowPlaying || { title: null }) });
   };
   window.wcAuto = on => {
     auto = !!on;

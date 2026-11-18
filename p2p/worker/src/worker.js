@@ -3,7 +3,8 @@
 // и отдаёт страницу слушателя.
 //
 //   GET /                                 главная: что это, «слушать по названию», скачать приложение
-//   GET /r/<комната>                      страница слушателя
+//   GET /r/<комната>                      страница слушателя (с манифестом — её можно «установить» как приложение)
+//   GET /m/<комната>.webmanifest          манифест PWA для этой комнаты
 //   GET /app/latest.json, /app/wavecast.apk  обновления приложения
 //   WS  /signal/<комната>?role=listener   слушатель; просится в эфир сообщением {type:"join", name, cid}
 //   WS  /signal/<комната>?role=host&key=  ведущий (ключ закрепляется за комнатой при первом входе)
@@ -20,12 +21,39 @@ export default {
     // названия эфиров нечувствительны к регистру: /r/SmokeDev = /r/smokedev
     let m = url.pathname.match(new RegExp(`^/signal/(${ROOM})$`, "i"));
     if (m) return env.ROOMS.get(env.ROOMS.idFromName(m[1].toLowerCase())).fetch(req);
-    if (new RegExp(`^/r/${ROOM}/?$`, "i").test(url.pathname)) return env.ASSETS.fetch(new Request(new URL("/listen", url), req));
+    m = url.pathname.match(new RegExp(`^/r/(${ROOM})/?$`, "i"));
+    if (m) {
+      const room = m[1].toLowerCase();
+      const page = await env.ASSETS.fetch(new Request(new URL("/listen", url), req));
+      return new HTMLRewriter().on("head", {
+        element(h) {
+          h.append(`<link rel="manifest" href="/m/${room}.webmanifest">` +
+            `<link rel="apple-touch-icon" href="/icons/192.png"><meta name="mobile-web-app-capable" content="yes">`, { html: true });
+        },
+      }).transform(page);
+    }
+    m = url.pathname.match(new RegExp(`^/m/(${ROOM})\\.webmanifest$`, "i"));
+    if (m) return manifest(m[1].toLowerCase());
     // всё остальное, чего нет среди файлов сайта, — оформленная страница «не найдено»
     const page = await env.ASSETS.fetch(new Request(new URL("/404", url), req));
     return new Response(page.body, { status: 404, headers: page.headers });
   },
 };
+
+// Манифест «приложения» для конкретного эфира: установленная иконка открывает сразу его
+function manifest(room) {
+  const body = {
+    name: `WaveCast · ${room}`, short_name: room.length > 12 ? "WaveCast" : room,
+    id: `/r/${room}`, start_url: `/r/${room}`, scope: "/", display: "standalone",
+    background_color: "#191627", theme_color: "#191627", lang: "ru",
+    icons: [
+      { src: "/icons/192.png", sizes: "192x192", type: "image/png" },
+      { src: "/icons/512.png", sizes: "512x512", type: "image/png" },
+      { src: "/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+    ],
+  };
+  return new Response(JSON.stringify(body), { headers: { "content-type": "application/manifest+json; charset=utf-8" } });
+}
 
 const sha256 = async (s) =>
   [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))]

@@ -41,9 +41,18 @@ class CaptureService : Service() {
         val p2pListeners: Int = 0,
         val p2pError: String? = null,
         val requests: List<Request> = emptyList(),   // кто просится в эфир
+        val p2pPeople: List<Person> = emptyList(),   // кто слушает по ссылке
+        val wifiPeople: List<Person> = emptyList(),  // кто слушает в Wi-Fi сети
+        val nowTitle: String? = null,                // что играет (видят пущенные слушатели)
+        val nowArtist: String? = null,
         val autoAllow: Boolean = false,
         val error: String? = null,
     )
+
+    /** Слушатель. key как у Request. */
+    data class Person(val key: String, val name: String) {
+        val viaWifi get() = key.startsWith("w:")
+    }
 
     /** Запрос на вход. key: "p:<id>" — по ссылке, "w:<id>" — из Wi-Fi сети. */
     data class Request(val key: String, val name: String) {
@@ -66,6 +75,8 @@ class CaptureService : Service() {
         val MESSENGERS = listOf("org.telegram.messenger", "org.telegram.messenger.web", "org.telegram.plus", "org.thunderdog.challegram", "com.whatsapp", "com.whatsapp.w4b", "com.viber.voip", "org.thoughtcrime.securesms", "com.vk.im", "ru.oneme.app", "jp.naver.line.android", "com.facebook.orca", "com.snapchat.android")
         const val ACTION_DECIDE = "dev.smoke.wavecast.DECIDE"
         const val ACTION_AUTO = "dev.smoke.wavecast.AUTO"
+        const val ACTION_KICK = "dev.smoke.wavecast.KICK"
+        const val EXTRA_NOW_PLAYING = "nowPlaying"
         const val EXTRA_REQ = "req"
         const val EXTRA_ALLOW = "allow"
 
@@ -82,6 +93,9 @@ class CaptureService : Service() {
         /** Громкость эфира 0..1 — для пульсации кнопки на главном экране. */
         @Volatile var level = 0f; private set
         var listener: ((Status) -> Unit)? = null
+        /** Реакции слушателей (имя, эмодзи) — для всплывающих эмодзи на главном экране. */
+        var reactionListener: ((String, String) -> Unit)? = null
+        private fun react(name: String, e: String) = main.post { reactionListener?.invoke(name, e) }
 
         private fun publish(s: Status) {
             status = s
@@ -97,6 +111,7 @@ class CaptureService : Service() {
     private var wifiLock: WifiManager.WifiLock? = null
     private var p2p: P2PHost? = null
     private var local: LocalServer? = null
+    private var nowPlaying: NowPlaying? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -106,6 +121,7 @@ class CaptureService : Service() {
             ACTION_START -> if (!capturing) start(intent)
             ACTION_DECIDE -> decide(intent.getStringExtra(EXTRA_REQ).orEmpty(), intent.getBooleanExtra(EXTRA_ALLOW, false))
             ACTION_AUTO -> setAuto(intent.getBooleanExtra(EXTRA_AUTO, false))
+            ACTION_KICK -> kick(intent.getStringExtra(EXTRA_REQ).orEmpty())
         }
         return START_NOT_STICKY
     }
@@ -138,7 +154,9 @@ class CaptureService : Service() {
                 p to LocalServer(p, assets,
                     onListeners = { n -> publish(status.copy(localListeners = n)); updateNotification() },
                     onRequest = { id, name -> main.post { addRequest(Request("w:$id", name)) } },
-                    onRequestGone = { id -> main.post { removeRequest("w:$id") } })
+                    onRequestGone = { id -> main.post { removeRequest("w:$id") } },
+                    onPeople = { l -> main.post { publish(status.copy(wifiPeople = l.map { Person("w:${it.first}", it.second) })) } },
+                    onReaction = { n, e -> react(n, e) })
             }.getOrNull()
         }
         if (srv == null) { fail("Порты $want–${want + 9} заняты"); return }
@@ -160,11 +178,25 @@ class CaptureService : Service() {
                     updateNotification()
                 },
                 requestCb = { id, name -> addRequest(Request("p:$id", name)) },
-                requestGoneCb = { id -> removeRequest("p:$id") })
+                requestGoneCb = { id -> removeRequest("p:$id") },
+                peopleCb = { l ->
+                    val people = l.map { Person("p:${it.first}", it.second) }
+                    if (people != status.p2pPeople) publish(status.copy(p2pPeople = people))
+                },
+                reactionCb = { n, e -> react(n, e) })
         }
 
         val rec = try { buildRecorder(mp, messengerUids()) } catch (e: Exception) { fail("AudioRecord: ${e.message}"); return }
         recorder = rec
+
+        // «Сейчас играет»: только если ведущий включил и дал доступ к уведомлениям
+        if (intent.getBooleanExtra(EXTRA_NOW_PLAYING, true)) {
+            nowPlaying = NowPlaying(this) { title, artist, json ->
+                publish(status.copy(nowTitle = title, nowArtist = artist))
+                p2p?.track(json)
+                local?.track(json?.let { org.json.JSONObject(it).put("type", "track").toString() })
+            }.also { it.start() }
+        }
 
         acquireLocks()
         publish(st.copy(requests = status.requests))
@@ -190,6 +222,11 @@ class CaptureService : Service() {
         val id = key.substringAfter(':')
         if (key.startsWith("p:")) p2p?.decide(id, allow) else local?.decide(id, allow)
         removeRequest(key)
+    }
+
+    private fun kick(key: String) {
+        val id = key.substringAfter(':')
+        if (key.startsWith("p:")) p2p?.kick(id) else local?.kick(id)
     }
 
     private fun setAuto(on: Boolean) {
@@ -304,6 +341,8 @@ class CaptureService : Service() {
         runCatching { recorder?.stop() }
         runCatching { recorder?.release() }
         recorder = null
+        nowPlaying?.stop()
+        nowPlaying = null
         p2p?.let { runCatching { it.close() } }
         p2p = null
         local = null

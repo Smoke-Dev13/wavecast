@@ -38,6 +38,13 @@ class MainActivity : Activity() {
     private lateinit var tvCount: TextView
     private lateinit var tvCountLabel: TextView
     private lateinit var reqBox: LinearLayout
+    private lateinit var peopleCard: LinearLayout
+    private lateinit var peopleBox: LinearLayout
+    private lateinit var peopleTitle: TextView
+    private lateinit var tvNow: TextView
+    private lateinit var floats: android.widget.FrameLayout
+    private lateinit var npCard: LinearLayout
+    private var shownPeople: List<CaptureService.Person>? = null
     private lateinit var updCard: LinearLayout
     private lateinit var updTitle: TextView
     private lateinit var updNotes: TextView
@@ -66,12 +73,14 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         CaptureService.listener = { render(it) }
+        CaptureService.reactionListener = { name, e -> floatReaction(name, e) }
         render(CaptureService.status)
         periodicCheck.run()                        // при каждом возврате и потом раз в 5 минут, пока экран открыт
     }
 
     override fun onPause() {
         CaptureService.listener = null
+        CaptureService.reactionListener = null
         ticker.removeCallbacks(periodicCheck)
         super.onPause()
     }
@@ -112,6 +121,7 @@ class MainActivity : Activity() {
             .putExtra(CaptureService.EXTRA_ROOM, s.room)
             .putExtra(CaptureService.EXTRA_HOST_KEY, s.hostKey)
             .putExtra(CaptureService.EXTRA_AUTO, s.autoAllow)
+            .putExtra(CaptureService.EXTRA_NOW_PLAYING, s.showNowPlaying)
         startForegroundService(i)
     }
 
@@ -158,6 +168,11 @@ class MainActivity : Activity() {
             android.text.style.ForegroundColorSpan(Ui.MILK), 0).append("  ›")
         tvRoom.visibility = if (on) View.GONE else View.VISIBLE
         tvHint.visibility = tvRoom.visibility
+
+        tvNow.visibility = if (on && st.nowTitle != null) View.VISIBLE else View.GONE
+        tvNow.text = "♪  " + st.nowTitle + (st.nowArtist?.takeIf { it.isNotBlank() }?.let { " — $it" } ?: "")
+        npCard.visibility = if (!on && s.showNowPlaying && !s.nowPlayingAsked && !NowPlaying.allowed(this)) View.VISIBLE else View.GONE
+        renderPeople(if (on) st.p2pPeople + st.wifiPeople else emptyList())
 
         val total = st.p2pListeners + st.localListeners
         tvCount.visibility = if (on) View.VISIBLE else View.GONE
@@ -236,6 +251,21 @@ class MainActivity : Activity() {
         }
         root.addView(tvRoom, wide(2))
 
+        // разовое предложение: показать друзьям, что играет
+        npCard = card(22, 16).apply { visibility = View.GONE }
+        npCard.addView(label("Покажи друзьям, что играет", 16f, Ui.MILK, Ui.bold))
+        npCard.addView(label("Название трека и обложка из твоего плеера появятся у слушателей. Android попросит доступ к уведомлениям — сами уведомления WaveCast не читает", 13f, Ui.DIM).apply {
+            setLineSpacing(px(2).toFloat(), 1f) }, wide(6))
+        val npRow = LinearLayout(this)
+        npRow.addView(chipButton("Разрешить", Ui.LILAC, Ui.INK).apply {
+            setOnClickListener { s.nowPlayingAsked = true; s.showNowPlaying = true; SettingsActivity.openListenerSettings(this@MainActivity) }
+        })
+        npRow.addView(chipButton("Не надо", Ui.BG, Ui.MILK).apply {
+            setOnClickListener { s.nowPlayingAsked = true; s.showNowPlaying = false; npCard.visibility = View.GONE }
+        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = px(8) })
+        npCard.addView(npRow, wide(12))
+        root.addView(npCard, wide(14))
+
         // кто просится в эфир — наверху, это главное во время эфира
         reqBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(reqBox, wide())
@@ -243,7 +273,13 @@ class MainActivity : Activity() {
         // сцена: круглая кнопка по центру свободного места
         val stage = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
         btn = PulseButton(this)
-        stage.addView(btn, LinearLayout.LayoutParams(px(290), px(290)))
+        // кнопка + слой для летящих реакций поверх неё
+        val btnBox = android.widget.FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
+        btnBox.addView(btn, android.widget.FrameLayout.LayoutParams(px(290), px(290)))
+        floats = android.widget.FrameLayout(this).apply { clipChildren = false; isClickable = false; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }
+        btnBox.addView(floats, android.widget.FrameLayout.LayoutParams(px(290), px(290)))
+        stage.clipChildren = false
+        stage.addView(btnBox, LinearLayout.LayoutParams(px(290), px(290)))
         tvCaption = label("В эфир", 18f, Ui.MILK, Ui.display).apply { gravity = Gravity.CENTER; letterSpacing = -0.02f }
         stage.addView(tvCaption, wide(-14))
         tvCount = label("0", 44f, Ui.LILAC, Ui.display).apply { gravity = Gravity.CENTER; visibility = View.GONE }
@@ -252,12 +288,25 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER; visibility = View.GONE; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
         }
         stage.addView(tvCountLabel, wide(6))
+        tvNow = label("", 14f, Ui.MILK).apply {
+            gravity = Gravity.CENTER; visibility = View.GONE; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+            setPadding(px(16), 0, px(16), 0)
+        }
+        stage.addView(tvNow, wide(10))
         root.addView(stage, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f).apply { topMargin = px(8); bottomMargin = px(8) })
 
         tvHint = label("Включай музыку в любом приложении — друзья услышат то же, что и ты", 15f, Ui.DIM).apply {
             gravity = Gravity.CENTER; setLineSpacing(px(3).toFloat(), 1f); setPadding(px(12), 0, px(12), 0)
         }
         root.addView(tvHint, wide())
+
+        // кто слушает — с кнопкой «Отключить»
+        peopleCard = card(22, 0).apply { visibility = View.GONE }
+        peopleTitle = label("Слушают", 13f, Ui.DIM).apply { setPadding(px(16), px(14), px(16), px(4)) }
+        peopleCard.addView(peopleTitle)
+        peopleBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        peopleCard.addView(peopleBox)
+        root.addView(peopleCard, wide(0))
 
         // карточка «Позови друзей»: сверху QR и ссылка, снизу две кнопки поровну на всю ширину
         shareCard = LinearLayout(this).apply {
@@ -288,7 +337,7 @@ class MainActivity : Activity() {
         half("Поделиться", 0) { share() }
         half("Копировать", 8) { copyLink() }
         shareCard.addView(row, wide(12))
-        root.addView(shareCard, wide())
+        root.addView(shareCard, wide(12))
 
         tvStatus = label("", 13f, Ui.DIM).apply { setLineSpacing(px(2).toFloat(), 1f); visibility = View.GONE; gravity = Gravity.CENTER }
         root.addView(tvStatus, wide(12))
@@ -306,6 +355,44 @@ class MainActivity : Activity() {
         }, android.view.ViewGroup.LayoutParams(px(320), px(320)))
         d.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
         d.show()
+    }
+
+    private fun renderPeople(list: List<CaptureService.Person>) {
+        peopleCard.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
+        if (list == shownPeople) return
+        shownPeople = list
+        peopleBox.removeAllViews()
+        for (p in list) {
+            val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(px(16), px(8), px(10), px(8)) }
+            val txt = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            txt.addView(label(p.name, 16f, Ui.MILK).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
+            txt.addView(label(if (p.viaWifi) "в Wi-Fi сети" else "по ссылке", 12f, Ui.DIM), wide(2))
+            row.addView(txt, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            row.addView(chipButton("Отключить", Ui.BG, Ui.MILK).apply {
+                setOnClickListener {
+                    startService(Intent(this@MainActivity, CaptureService::class.java)
+                        .setAction(CaptureService.ACTION_KICK).putExtra(CaptureService.EXTRA_REQ, p.key))
+                }
+            })
+            peopleBox.addView(row)
+        }
+        peopleBox.addView(View(this), LinearLayout.LayoutParams(1, px(8)))
+    }
+
+    /** Реакция слушателя всплывает над кнопкой эфира. */
+    private fun floatReaction(name: String, e: String) {
+        if (!CaptureService.status.running || floats.childCount > 20) return
+        val v = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
+        v.addView(label(e, 30f).apply { includeFontPadding = true })
+        v.addView(label(name.take(12), 11f, Ui.DIM, Ui.bold))
+        val size = px(290)
+        val lp = android.widget.FrameLayout.LayoutParams(android.widget.FrameLayout.LayoutParams.WRAP_CONTENT, android.widget.FrameLayout.LayoutParams.WRAP_CONTENT)
+        lp.leftMargin = (size * (0.18 + Math.random() * 0.55)).toInt(); lp.topMargin = (size * 0.55).toInt()
+        floats.addView(v, lp)
+        v.alpha = 0f; v.scaleX = 0.6f; v.scaleY = 0.6f
+        v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(-px(40).toFloat()).setDuration(260).withEndAction {
+            v.animate().alpha(0f).translationY(-px(190).toFloat()).setDuration(1900).withEndAction { floats.removeView(v) }.start()
+        }.start()
     }
 
     private fun renderRequests(list: List<CaptureService.Request>) {

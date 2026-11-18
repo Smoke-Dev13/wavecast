@@ -50,6 +50,17 @@
             android:exported="false"
             android:parentActivityName=".MainActivity" />
 
+        <!-- «Сейчас играет»: доступ к уведомлениям нужен только чтобы видеть, что играет в других плеерах -->
+        <service
+            android:name=".NowPlayingListener"
+            android:exported="true"
+            android:label="WaveCast: что играет"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <receiver
             android:name=".InstallReceiver"
             android:exported="false" />

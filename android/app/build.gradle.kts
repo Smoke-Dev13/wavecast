@@ -11,8 +11,8 @@ android {
         applicationId = "dev.smoke.wavecast"
         minSdk = 29          // AudioPlaybackCapture появился в Android 10
         targetSdk = 34
-        versionCode = 16
-        versionName = "0.8.3"
+        versionCode = 17
+        versionName = "0.9.0"
     }
 
     // Ключ подписи хранится только у владельца, в репозиторий не попадает.

@@ -26,6 +26,8 @@ class P2PHost(
     private val stateCb: (connected: Boolean, listeners: Int, error: String?) -> Unit,
     private val requestCb: (id: String, name: String) -> Unit,
     private val requestGoneCb: (id: String) -> Unit,
+    private val peopleCb: (List<Pair<String, String>>) -> Unit = {},
+    private val reactionCb: (name: String, emoji: String) -> Unit = { _, _ -> },
 ) {
     private val main = Handler(Looper.getMainLooper())
     private val web = WebView(ctx.applicationContext)
@@ -45,8 +47,15 @@ class P2PHost(
         fun onState(json: String) {
             val o = runCatching { JSONObject(json) }.getOrNull() ?: return
             val err = if (o.isNull("error")) null else o.optString("error")
-            main.post { stateCb(o.optBoolean("signal"), o.optInt("listeners"), err) }
+            val arr = o.optJSONArray("people")
+            val people = (0 until (arr?.length() ?: 0)).mapNotNull { i ->
+                arr!!.optJSONObject(i)?.let { it.optString("id") to it.optString("name", "Гость") }
+            }
+            main.post { stateCb(o.optBoolean("signal"), o.optInt("listeners"), err); peopleCb(people) }
         }
+
+        @JavascriptInterface
+        fun onReaction(name: String, emoji: String) { main.post { reactionCb(name, emoji) } }
 
         @JavascriptInterface
         fun onRequest(id: String, name: String) { main.post { requestCb(id, name) } }
@@ -58,6 +67,15 @@ class P2PHost(
     /** Ответ ведущего на запрос слушателя. */
     fun decide(id: String, allow: Boolean) {
         main.post { web.evaluateJavascript("wcDecide(${JSONObject.quote(id)}, $allow)", null) }
+    }
+
+    fun kick(id: String) {
+        main.post { web.evaluateJavascript("wcKick(${JSONObject.quote(id)})", null) }
+    }
+
+    /** Что играет: JSON-объект {title, artist, cover} или null. */
+    fun track(json: String?) {
+        main.post { web.evaluateJavascript("wcTrack(${json ?: "null"})", null) }
     }
 
     fun setAuto(on: Boolean) {

@@ -10,6 +10,7 @@
   <p id="state">подключаюсь…</p>
   <div class="stage">
     <canvas id="viz"></canvas>
+    <div class="floats" id="floats" aria-hidden="true"></div>
     <button id="btn" aria-label="Слушать">
       <svg class="play" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 3.5v17a1 1 0 0 0 1.5.86l14-8.5a1 1 0 0 0 0-1.72l-14-8.5A1 1 0 0 0 7 3.5z"/></svg>
       <svg class="stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor"/></svg>
@@ -21,6 +22,7 @@
     <input id="name" maxlength="24" autocomplete="nickname" placeholder="Например, Аня">
   </div>
   <div class="now" id="now"><img id="cover" alt=""><a id="tlink" target="_blank" rel="noopener"><div class="t" id="title"></div><div class="a" id="artist"></div></a></div>
+  <div class="reacts" id="reacts" role="group" aria-label="Реакции"></div>
   <div class="dj" id="dj"></div>
   <label class="vol">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 4V5L7 9H3zm12.5 3a4 4 0 0 0-2-3.46v6.92a4 4 0 0 0 2-3.46z"/></svg>
@@ -70,7 +72,8 @@
   let fmt = { rate: 48000, channels: 2 }, ts = 0;
   let nextTime = 0, underruns = 0, target = 0.25, retry = 500;
   // Запрос на вход: телефон ведущего отвечает waiting / approved / denied. Relay-сервер их не шлёт — там пускают всех.
-  let asked = false, waiting = false;
+  let asked = false, waiting = false, lastReact = 0, blocked = false;   // blocked: не пустили / отключили — не затираем это сообщение
+  const EMOJI = ['🔥', '❤️', '😂', '👏', '🎉', '😍'];
   const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch {} return null; };
   let cid = store('wc-cid');
   if (!cid) { cid = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(36).padStart(2, '0')).join('').slice(0, 20); store('wc-cid', cid); }
@@ -97,8 +100,8 @@ RING_JS
     codec = wantOpus ? 'opus' : 'pcm';
     ws = new WebSocket(base + '?codec=' + codec);
     ws.binaryType = 'arraybuffer';
-    ws.onopen = () => { retry = 500; setState('На связи, жду эфир'); if (asked) join(); };
-    ws.onclose = () => { live = false; $('pill').className = 'pill'; $('cnt').textContent = 'не в эфире'; setState('Нет связи, переподключаюсь…'); ui(); setTimeout(connect, retry); retry = Math.min(retry * 2, 8000); };
+    ws.onopen = () => { retry = 500; if (!blocked) setState('На связи, жду эфир'); if (asked) join(); };
+    ws.onclose = () => { live = false; $('pill').className = 'pill'; $('cnt').textContent = 'не в эфире'; if (!blocked) setState('Нет связи, переподключаюсь…'); ui(); setTimeout(connect, retry); retry = Math.min(retry * 2, 8000); };
     ws.onmessage = ev => typeof ev.data === 'string' ? onText(JSON.parse(ev.data)) : onAudio(ev.data);
   }
 
@@ -113,16 +116,27 @@ RING_JS
         live = m.live;
         $('pill').className = 'pill' + (live ? ' live' : '');
         $('cnt').textContent = live ? plural(m.listeners) : 'не в эфире';
-        if (!waiting) setState(live ? (playing ? 'Ты в эфире' : 'Эфир идёт') : 'Эфир ещё не начался. Страница сама подключится.');
+        if (!waiting && !blocked) setState(live ? (playing ? 'Ты в эфире' : 'Эфир идёт') : 'Эфир ещё не начался. Страница сама подключится.');
         if (!live) $('now').style.display = 'none';
         ui();
         break;
-      case 'track':
+      case 'track': {
+        if (!m.title) { $('now').style.display = 'none'; document.title = (room || 'эфир') + ' — WaveCast'; break; }
+        const okCover = /^(data:image\/(jpeg|png|webp);base64,|https:\/\/)/.test(m.cover || '');
         $('title').textContent = $('title').title = m.title || ''; $('artist').textContent = $('artist').title = m.artist || '';
-        $('cover').src = m.cover || ''; $('cover').style.display = m.cover ? 'block' : 'none';
+        $('cover').src = okCover ? m.cover : ''; $('cover').style.display = okCover ? 'block' : 'none';
         if (m.url) $('tlink').href = m.url; else $('tlink').removeAttribute('href');
         $('now').style.display = 'flex';
-        document.title = `${m.title} — ${m.artist}`;
+        document.title = m.title + (m.artist ? ' — ' + m.artist : '');
+        break;
+      }
+      case 'react':
+        if (EMOJI.includes(m.e)) float(m.e, m.name);
+        break;
+      case 'kicked':
+        waiting = false; asked = false; playing = false; blocked = true; if (ctx) ctx.suspend();
+        $('reacts').style.display = 'none'; $('now').style.display = 'none';
+        $('who').style.display = ''; setState('Ведущий отключил тебя от эфира', true); ui();
         break;
       case 'dj':
         $('dj').textContent = m.text; $('dj').style.display = 'block';
@@ -132,10 +146,11 @@ RING_JS
         waiting = true; setState('Ждём, пока ведущий пустит…'); ui();
         break;
       case 'approved':
-        waiting = false; $('who').style.display = 'none'; setState(playing ? 'Ты в эфире' : 'Эфир идёт'); ui();
+        waiting = false; $('who').style.display = 'none'; $('reacts').style.display = 'flex';   // реакции — только у пущенных телефоном ведущего
+        setState(playing ? 'Ты в эфире' : 'Эфир идёт'); ui();
         break;
       case 'denied':
-        waiting = false; asked = false; playing = false; if (ctx) ctx.suspend();
+        waiting = false; asked = false; playing = false; blocked = true; if (ctx) ctx.suspend();
         $('who').style.display = ''; setState('Ведущий не пустил в эфир', true); ui();
         break;
       case 'busy':
@@ -208,7 +223,7 @@ RING_JS
     }
     if (!playing) {
       await ctx.resume(); playing = true; nextTime = 0;
-      if (!asked) { asked = true; store('wc-name', $('name').value.trim()); join(); }
+      if (!asked) { asked = true; blocked = false; store('wc-name', $('name').value.trim()); join(); }
     }
     else { playing = false; await ctx.suspend(); }
     if (live && !waiting) setState(playing ? 'Ты в эфире' : 'Эфир идёт');
@@ -223,6 +238,31 @@ RING_JS
   };
 
   $('name').onkeydown = e => { if (e.key === 'Enter') $('btn').click(); };
+
+  // летящая реакция над кнопкой
+  function float(e, name) {
+    const box = $('floats');
+    if (box.childElementCount > 24) return;
+    const el = document.createElement('span');
+    el.textContent = e;
+    if (name) { const n = document.createElement('small'); n.textContent = name.slice(0, 12); el.appendChild(n); }
+    el.style.left = (15 + Math.random() * 62) + '%';
+    el.addEventListener('animationend', () => el.remove());
+    box.appendChild(el);
+  }
+  for (const e of EMOJI) {
+    const b = document.createElement('button');
+    b.textContent = e; b.setAttribute('aria-label', 'Реакция ' + e);
+    b.onclick = () => {
+      const now = Date.now();
+      if (!ws || ws.readyState !== 1 || now - lastReact < 600) return;
+      lastReact = now;
+      ws.send(JSON.stringify({ type: 'react', e }));
+      float(e);
+      if (navigator.vibrate) navigator.vibrate(12);
+    };
+    $('reacts').appendChild(b);
+  }
   opusSupported().then(ok => { wantOpus = ok; connect(); });
 })();
 </script>
