@@ -44,6 +44,11 @@ class MainActivity : Activity() {
     private lateinit var tvNow: TextView
     private lateinit var floats: android.widget.FrameLayout
     private lateinit var npCard: LinearLayout
+    private lateinit var npTitle: TextView
+    private lateinit var npText: TextView
+    private lateinit var npPrimary: Button
+    private lateinit var npRetry: Button
+    private lateinit var npSkip: TextView
     private var shownPeople: List<CaptureService.Person>? = null
     private lateinit var updCard: LinearLayout
     private lateinit var updTitle: TextView
@@ -171,7 +176,21 @@ class MainActivity : Activity() {
 
         tvNow.visibility = if (on && st.nowTitle != null) View.VISIBLE else View.GONE
         tvNow.text = "♪  " + st.nowTitle + (st.nowArtist?.takeIf { it.isNotBlank() }?.let { " — $it" } ?: "")
-        npCard.visibility = if (!on && s.showNowPlaying && !s.nowPlayingAsked && !NowPlaying.allowed(this)) View.VISIBLE else View.GONE
+        npCard.visibility = if (!on && s.showNowPlaying && !NowPlaying.allowed(this)) View.VISIBLE else View.GONE
+        if (s.nowPlayingAsked) {
+            // уже отправляли в настройки, а доступа нет — скорее всего, «Настройки с ограниченным доступом»
+            npTitle.text = "Android не дал доступ?"
+            npText.text = "Если было окно «Настройки с ограниченным доступом»: открой настройки WaveCast, нажми ⋮ в правом верхнем углу → «Разрешить ограниченные настройки». Потом нажми «Повторить»"
+            npPrimary.text = "Настройки WaveCast"
+            npRetry.text = "Повторить"
+            npSkip.visibility = View.VISIBLE
+        } else {
+            npTitle.text = "Покажи друзьям, что играет"
+            npText.text = "Название трека и обложка из твоего плеера появятся у слушателей. Android попросит доступ к уведомлениям — сами уведомления WaveCast не читает"
+            npPrimary.text = "Разрешить"
+            npRetry.text = "Не надо"
+            npSkip.visibility = View.GONE
+        }
         renderPeople(if (on) st.p2pPeople + st.wifiPeople else emptyList())
 
         val total = st.p2pListeners + st.localListeners
@@ -251,19 +270,34 @@ class MainActivity : Activity() {
         }
         root.addView(tvRoom, wide(2))
 
-        // разовое предложение: показать друзьям, что играет
+        // предложение показать друзьям, что играет (и подсказка, если Android заблокировал доступ)
         npCard = card(22, 16).apply { visibility = View.GONE }
-        npCard.addView(label("Покажи друзьям, что играет", 16f, Ui.MILK, Ui.bold))
-        npCard.addView(label("Название трека и обложка из твоего плеера появятся у слушателей. Android попросит доступ к уведомлениям — сами уведомления WaveCast не читает", 13f, Ui.DIM).apply {
-            setLineSpacing(px(2).toFloat(), 1f) }, wide(6))
+        npTitle = label("", 16f, Ui.MILK, Ui.bold)
+        npCard.addView(npTitle)
+        npText = label("", 13f, Ui.DIM).apply { setLineSpacing(px(2).toFloat(), 1f) }
+        npCard.addView(npText, wide(6))
         val npRow = LinearLayout(this)
-        npRow.addView(chipButton("Разрешить", Ui.LILAC, Ui.INK).apply {
-            setOnClickListener { s.nowPlayingAsked = true; s.showNowPlaying = true; SettingsActivity.openListenerSettings(this@MainActivity) }
-        })
-        npRow.addView(chipButton("Не надо", Ui.BG, Ui.MILK).apply {
-            setOnClickListener { s.nowPlayingAsked = true; s.showNowPlaying = false; npCard.visibility = View.GONE }
-        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = px(8) })
+        npPrimary = chipButton("", Ui.LILAC, Ui.INK).apply {
+            setOnClickListener {
+                if (s.nowPlayingAsked) openAppDetails()
+                else { s.nowPlayingAsked = true; s.showNowPlaying = true; SettingsActivity.openListenerSettings(this@MainActivity) }
+            }
+        }
+        npRow.addView(npPrimary)
+        // вторая кнопка: «Не надо» при первом предложении, «Повторить» — если Android не дал доступ
+        npRetry = chipButton("", Ui.BG, Ui.MILK).apply {
+            setOnClickListener {
+                if (s.nowPlayingAsked) SettingsActivity.openListenerSettings(this@MainActivity)
+                else { s.nowPlayingAsked = true; s.showNowPlaying = false; npCard.visibility = View.GONE }
+            }
+        }
+        npRow.addView(npRetry, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = px(8) })
         npCard.addView(npRow, wide(12))
+        npSkip = label("Не показывать", 13f, Ui.DIM).apply {
+            setPadding(0, px(10), px(10), px(2))
+            setOnClickListener { s.showNowPlaying = false; npCard.visibility = View.GONE }
+        }
+        npCard.addView(npSkip)
         root.addView(npCard, wide(14))
 
         // кто просится в эфир — наверху, это главное во время эфира
@@ -378,6 +412,9 @@ class MainActivity : Activity() {
         }
         peopleBox.addView(View(this), LinearLayout.LayoutParams(1, px(8)))
     }
+
+    private fun openAppDetails() = startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+        android.net.Uri.parse("package:$packageName")))
 
     /** Реакция слушателя всплывает над кнопкой эфира. */
     private fun floatReaction(name: String, e: String) {

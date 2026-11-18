@@ -1,8 +1,8 @@
 {
-  "versionCode": 17,
-  "versionName": "0.9.0",
-  "url": "wavecast.apk?v=17",
-  "sha256": "d6cb134b6a783a948f73d14b7bc9e178c03e672b75e7c0597b635731d166de2d",
+  "versionCode": 18,
+  "versionName": "0.9.1",
+  "url": "wavecast.apk?v=18",
+  "sha256": "c2c67a9005f62155e7d6583dd23a80dedec101c89ffbef3a737bc6d34107d5b1",
   "size": 1147954,
-  "notes": "Сейчас играет, список слушателей с кнопкой «Отключить», реакции"
+  "notes": "Подсказка, если Android блокирует доступ «Сейчас играет»"
 }

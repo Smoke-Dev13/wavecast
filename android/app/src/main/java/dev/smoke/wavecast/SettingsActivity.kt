@@ -21,6 +21,7 @@ class SettingsActivity : Activity() {
     private lateinit var etService: EditText
     private lateinit var swAuto: Switch
     private lateinit var swNow: Switch
+    private lateinit var nowHelp: TextView
     private lateinit var tvUpdate: TextView
     private lateinit var btnUpdate: Button
 
@@ -47,6 +48,7 @@ class SettingsActivity : Activity() {
         super.onResume()
         // переключатель включён, только если и настройка включена, и Android дал доступ
         swNow.isChecked = s.showNowPlaying && NowPlaying.allowed(this)
+        nowHelp.visibility = if (s.showNowPlaying && s.nowPlayingAsked && !NowPlaying.allowed(this)) View.VISIBLE else View.GONE
     }
 
     override fun onPause() {
@@ -153,6 +155,11 @@ class SettingsActivity : Activity() {
 
         divider(g2)
         swNow = toggleRow(g2, "Показывать друзьям, что играет", "Название трека и обложка из твоего плеера. Android попросит доступ к уведомлениям — сами уведомления WaveCast не читает")
+        nowHelp = label("Android пишет «Настройки с ограниченным доступом»? Нажми здесь, затем ⋮ в правом верхнем углу → «Разрешить ограниченные настройки» и снова включи переключатель", 13f, Ui.CORAL).apply {
+            setLineSpacing(px(2).toFloat(), 1f); setPadding(px(16), 0, px(16), px(14)); visibility = View.GONE
+            setOnClickListener { startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) }
+        }
+        g2.addView(nowHelp)
 
         section("О приложении")
         val g3 = group()
