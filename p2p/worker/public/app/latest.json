@@ -1,8 +1,8 @@
 {
-  "versionCode": 15,
-  "versionName": "0.8.2",
-  "url": "wavecast.apk?v=15",
-  "sha256": "f5610582d8b3c7aa2b769b2b80b2b9ff1583b837e873317813af713ab521bf91",
+  "versionCode": 16,
+  "versionName": "0.8.3",
+  "url": "wavecast.apk?v=16",
+  "sha256": "a25323d0b878b4bdc0f56f8341bb8e402577b6ed5943deba6e7beaecf29d29b1",
   "size": 1131570,
-  "notes": "Новые версии находятся сразу, без перезапуска приложения"
+  "notes": "Звук мессенджеров никогда не попадает в эфир, лишний переключатель убран"
 }

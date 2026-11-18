@@ -112,7 +112,6 @@ class MainActivity : Activity() {
             .putExtra(CaptureService.EXTRA_ROOM, s.room)
             .putExtra(CaptureService.EXTRA_HOST_KEY, s.hostKey)
             .putExtra(CaptureService.EXTRA_AUTO, s.autoAllow)
-            .putExtra(CaptureService.EXTRA_MUTE_MESSENGERS, s.muteMessengers)
         startForegroundService(i)
     }
 

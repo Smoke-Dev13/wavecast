@@ -20,7 +20,6 @@ class SettingsActivity : Activity() {
     private lateinit var etRoom: EditText
     private lateinit var etService: EditText
     private lateinit var swAuto: Switch
-    private lateinit var swMute: Switch
     private lateinit var tvUpdate: TextView
     private lateinit var btnUpdate: Button
 
@@ -31,13 +30,11 @@ class SettingsActivity : Activity() {
         etRoom.setText(s.room)
         etService.setText(s.service)
         swAuto.isChecked = s.autoAllow
-        swMute.isChecked = s.muteMessengers
         swAuto.setOnCheckedChangeListener { _, on ->
             s.autoAllow = on
             if (CaptureService.status.running) startService(Intent(this, CaptureService::class.java)
                 .setAction(CaptureService.ACTION_AUTO).putExtra(CaptureService.EXTRA_AUTO, on))
         }
-        swMute.setOnCheckedChangeListener { _, on -> s.muteMessengers = on }
         renderUpdate(Updater.available, null)
     }
 
@@ -139,11 +136,9 @@ class SettingsActivity : Activity() {
         divider(g1)
         etService = inputRow(g1, "Адрес сервиса", Settings.DEFAULT_SERVICE, "Менять не нужно, если ты не поднимал свой сервис")
 
-        section("Слушатели и звук")
+        section("Слушатели")
         val g2 = group()
         swAuto = toggleRow(g2, "Пускать всех без вопросов", "Иначе каждый просится в эфир, а ты пускаешь его кнопкой в уведомлении")
-        divider(g2)
-        swMute = toggleRow(g2, "Не транслировать мессенджеры", "Голосовые и звук Telegram, WhatsApp, Viber, Signal, VK Мессенджера, MAX не попадут в эфир")
 
         section("О приложении")
         val g3 = group()

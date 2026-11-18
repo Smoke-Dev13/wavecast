@@ -20,10 +20,6 @@ class Settings(ctx: Context) {
         get() = p.getBoolean("autoAllow", false)
         set(v) = p.edit().putBoolean("autoAllow", v).apply()
 
-    var muteMessengers: Boolean
-        get() = p.getBoolean("muteMessengers", true)
-        set(v) = p.edit().putBoolean("muteMessengers", v).apply()
-
     /** Ключ ведущего: закрепляет название эфира за этим телефоном. */
     val hostKey: String
         get() = p.getString("hostKey", null) ?: random(KEY_CHARS, 32).also { p.edit().putString("hostKey", it).apply() }

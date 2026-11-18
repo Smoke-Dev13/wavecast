@@ -61,9 +61,8 @@ class CaptureService : Service() {
         const val EXTRA_ROOM = "room"
         const val EXTRA_HOST_KEY = "hostKey"
         const val EXTRA_AUTO = "auto"
-        const val EXTRA_MUTE_MESSENGERS = "muteMessengers"
 
-        /** Мессенджеры: их звук (голосовые, кружки) в эфир не пускаем. Музыкальные приложения не трогаем. */
+        /** Мессенджеры: их звук (голосовые, кружки) в эфир не идёт никогда. Музыкальные приложения не трогаем. */
         val MESSENGERS = listOf("org.telegram.messenger", "org.telegram.messenger.web", "org.telegram.plus", "org.thunderdog.challegram", "com.whatsapp", "com.whatsapp.w4b", "com.viber.voip", "org.thoughtcrime.securesms", "com.vk.im", "ru.oneme.app", "jp.naver.line.android", "com.facebook.orca", "com.snapchat.android")
         const val ACTION_DECIDE = "dev.smoke.wavecast.DECIDE"
         const val ACTION_AUTO = "dev.smoke.wavecast.AUTO"
@@ -164,8 +163,7 @@ class CaptureService : Service() {
                 requestGoneCb = { id -> removeRequest("p:$id") })
         }
 
-        val muted = if (intent.getBooleanExtra(EXTRA_MUTE_MESSENGERS, true)) messengerUids() else emptyList()
-        val rec = try { buildRecorder(mp, muted) } catch (e: Exception) { fail("AudioRecord: ${e.message}"); return }
+        val rec = try { buildRecorder(mp, messengerUids()) } catch (e: Exception) { fail("AudioRecord: ${e.message}"); return }
         recorder = rec
 
         acquireLocks()
