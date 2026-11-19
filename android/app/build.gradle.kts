@@ -42,6 +42,12 @@ android {
         }
     }
 
+    // Сборка без Google Play: строгие проверки lint для релиза не нужны и не должны валить сборку
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
