@@ -28,6 +28,7 @@ class P2PHost(
     private val requestGoneCb: (id: String) -> Unit,
     private val peopleCb: (List<Pair<String, String>>) -> Unit = {},
     private val reactionCb: (name: String, emoji: String) -> Unit = { _, _ -> },
+    private val chatCb: (id: String, name: String, text: String, nonce: String) -> Unit = { _, _, _, _ -> },
 ) {
     private val main = Handler(Looper.getMainLooper())
     private val web = WebView(ctx.applicationContext)
@@ -58,6 +59,9 @@ class P2PHost(
         fun onReaction(name: String, emoji: String) { main.post { reactionCb(name, emoji) } }
 
         @JavascriptInterface
+        fun onChat(id: String, name: String, text: String, nonce: String) { main.post { chatCb(id, name, text, nonce) } }
+
+        @JavascriptInterface
         fun onRequest(id: String, name: String) { main.post { requestCb(id, name) } }
 
         @JavascriptInterface
@@ -67,6 +71,15 @@ class P2PHost(
     /** Ответ ведущего на запрос слушателя. */
     fun decide(id: String, allow: Boolean) {
         main.post { web.evaluateJavascript("wcDecide(${JSONObject.quote(id)}, $allow)", null) }
+    }
+
+    /** Готовое сообщение чата (JSON-объект) — всем слушателям по ссылке. */
+    fun chatOut(json: String) {
+        main.post { web.evaluateJavascript("wcChatOut($json)", null) }
+    }
+
+    fun history(itemsJson: String) {
+        main.post { web.evaluateJavascript("wcHistory($itemsJson)", null) }
     }
 
     fun kick(id: String) {

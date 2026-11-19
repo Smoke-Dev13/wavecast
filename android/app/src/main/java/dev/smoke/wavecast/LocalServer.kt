@@ -43,6 +43,7 @@ class LocalServer(
     private val onRequestGone: (id: String) -> Unit = {},
     private val onPeople: (List<Pair<String, String>>) -> Unit = {},
     private val onReaction: (name: String, emoji: String) -> Unit = { _, _ -> },
+    private val onChat: (id: String, name: String, text: String, nonce: String) -> Unit = { _, _, _, _ -> },
 ) : Sink {
 
     /** Токен для служебного подключения P2P-страницы. */
@@ -56,6 +57,7 @@ class LocalServer(
     private val nextId = java.util.concurrent.atomic.AtomicInteger()
     @Volatile private var formatMsg: String? = null
     @Volatile private var trackMsg: String? = null
+    @Volatile private var historyMsg: String? = null
     @Volatile private var running = true
     private val server = ServerSocket().apply { reuseAddress = true; bind(InetSocketAddress(port)) }
 
@@ -93,6 +95,14 @@ class LocalServer(
         broadcastStatus()
     }
 
+    /** Сообщение чата (готовый JSON с type=chat) — всем пущенным. */
+    fun chatOut(json: String) = clients.forEach { if (it.approved && !it.internal) it.text(json) }
+
+    /** История чата для новичков: JSON-массив сообщений. */
+    fun history(itemsJson: String) {
+        historyMsg = """{"type":"chat-history","items":$itemsJson}"""
+    }
+
     /** Что играет: JSON {"type":"track",...} или null — убрать. */
     fun track(json: String?) {
         trackMsg = json
@@ -114,6 +124,7 @@ class LocalServer(
         c.text("""{"type":"approved"}""")
         formatMsg?.let { c.text(it) }
         trackMsg?.let { c.text(it) }
+        historyMsg?.let { c.text(it) }
         broadcastStatus()
     }
 
@@ -123,6 +134,14 @@ class LocalServer(
         when (o.optString("type")) {
             "join" -> if (!c.approved) onJoin(c, o)
             "react" -> if (c.approved) onReact(c, o.optString("e"))
+            "chat" -> if (c.approved) {
+                val text = o.optString("text").replace(Regex("\\s+"), " ").trim().take(200)
+                val now = System.currentTimeMillis()
+                if (text.isNotEmpty() && now - c.lastChat >= 1000) {   // не чаще раза в секунду
+                    c.lastChat = now
+                    onChat(c.id, c.name, text, o.optString("n").take(24))
+                }
+            }
         }
     }
 
@@ -257,6 +276,7 @@ class LocalServer(
         @Volatile var cid: String = id
         @Volatile var name: String = "Гость"
         @Volatile var lastReact = 0L
+        @Volatile var lastChat = 0L
         private val q = LinkedBlockingQueue<Pair<Int, ByteArray>>()
         @Volatile private var alive = true
         private val writer = thread(name = "wc-write", isDaemon = true) {

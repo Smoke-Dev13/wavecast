@@ -61,6 +61,12 @@
             </intent-filter>
         </service>
 
+        <activity
+            android:name=".ChatActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName=".MainActivity" />
+
         <receiver
             android:name=".InstallReceiver"
             android:exported="false" />

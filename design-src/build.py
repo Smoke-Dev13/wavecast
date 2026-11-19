@@ -10,6 +10,6 @@ for body, out, extra in (("p2p_body.html", "p2p/worker/public/listen.html", ""),
                          ("landing_body.html", "p2p/worker/public/index.html", site),
                          ("404_body.html", "p2p/worker/public/404.html", site),
                          ("relay_body.html", "relay/wavecast/static/index.html", "")):
-    html = part("head.html") + part("style.css") + extra + part(body).replace("RING_JS\n", part("viz.js")).replace("RX_JS\n", part("rx.js"))
+    html = part("head.html") + part("style.css") + extra + part(body).replace("RING_JS\n", part("viz.js")).replace("RX_JS\n", part("rx.js")).replace("CHAT_JS\n", part("chat.js"))
     (root / out).write_text(html, encoding="utf-8")
     print("собрано:", out)

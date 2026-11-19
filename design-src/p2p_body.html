@@ -28,8 +28,11 @@
       <input id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Громкость">
     </label>
     <div class="rx" id="reacts">
-      <div class="stack" id="stack" role="menu" aria-label="Реакции"></div>
-      <button id="rxBtn" aria-label="Реакции" aria-haspopup="menu" aria-expanded="false">😊</button>
+      <button id="chatBtn" aria-label="Чат эфира">💬<span class="badge" id="chatBadge" hidden></span></button>
+      <div class="rxw">
+        <div class="stack" id="stack" role="menu" aria-label="Реакции"></div>
+        <button id="rxBtn" aria-label="Реакции" aria-haspopup="menu" aria-expanded="false">😊</button>
+      </div>
     </div>
   </div>
   <div class="foot">
@@ -38,6 +41,12 @@
   </div>
   <audio id="audio" playsinline></audio>
   <div class="viewer" id="viewer" hidden role="dialog" aria-label="Обложка"><img id="viewerImg" alt=""><div class="vt" id="viewerT"></div><div class="va" id="viewerA"></div></div>
+  <div class="sheet" id="chat" hidden role="dialog" aria-label="Чат эфира">
+    <div class="sheet-head"><b>Чат эфира</b><button id="chatClose" aria-label="Закрыть чат">✕</button></div>
+    <div class="msgs" id="msgs" aria-live="polite"><div class="empty" id="chatEmpty">Сообщений пока нет. Напиши первым — увидят все в эфире</div></div>
+    <form class="send" id="chatForm"><input id="chatInput" maxlength="200" placeholder="Написать всем…" autocomplete="off" enterkeyhint="send" aria-label="Сообщение"><button>Отправить</button></form>
+    <div class="hint" id="chatHint" aria-live="polite"></div>
+  </div>
 </main>
 <script>
 (() => {
@@ -145,7 +154,7 @@ RING_JS
         break;
       case 'status':
         live = d.live !== false;
-        if (!live && !blocked) { drop(); waiting = false; $('now').style.display = 'none'; setLive(false); setState('Эфир закончился. Останься на странице — подключу, когда ведущий вернётся.'); }
+        if (!live && !blocked) { drop(); waiting = false; Chat.reset(); $('now').style.display = 'none'; setLive(false); setState('Эфир закончился. Останься на странице — подключу, когда ведущий вернётся.'); }
         else if (pc && pc.connectionState === 'connected') setLive(true, d.listeners);
         ui();
         break;
@@ -153,7 +162,7 @@ RING_JS
         waiting = true; setState('Ждём, пока ведущий пустит…'); ui();
         break;
       case 'denied':
-        asked = false; waiting = false; wanted = false; blocked = true; drop(); silence();
+        asked = false; waiting = false; wanted = false; blocked = true; drop(); silence(); Chat.reset();
         setState('Ведущий не пустил в эфир', true); $('who').style.display = ''; ui();
         break;
       case 'busy':
@@ -161,7 +170,7 @@ RING_JS
         setState('У ведущего сейчас много запросов. Попробуй через минуту.', true); ui();
         break;
       case 'kicked':
-        asked = false; waiting = false; wanted = false; blocked = true; drop(); silence(); showTrack(null);
+        asked = false; waiting = false; wanted = false; blocked = true; drop(); silence(); showTrack(null); Chat.reset();
         setState('Ведущий отключил тебя от эфира', true); $('who').style.display = ''; ui();
         break;
       case 'full':
@@ -201,6 +210,8 @@ RING_JS
 
   function onData(d) {
     if (d.type === 'track') showTrack(d.title ? d : null);
+    if (d.type === 'chat') Chat.message(d);
+    if (d.type === 'chat-history') Chat.history(d.items);
     if (d.type === 'react' && EMOJI.includes(d.e)) float(d.e, d.name);
   }
 
@@ -231,12 +242,14 @@ RING_JS
   }
 
 RX_JS
+CHAT_JS
   setupReactions(e => {
     const now = Date.now();
     if (!dc || dc.readyState !== 'open' || now - lastReact < 600) return false;
     lastReact = now; dc.send(JSON.stringify({ type: 'react', e })); return true;
   });
   setupViewer();
+  Chat.setSend(o => { if (!dc || dc.readyState !== 'open') return false; dc.send(JSON.stringify(o)); return true; });
 
   function ui() {
     $('btn').className = wanted ? 'on' : '';

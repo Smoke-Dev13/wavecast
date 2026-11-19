@@ -39,6 +39,7 @@ class MainActivity : Activity() {
     private lateinit var tvCountLabel: TextView
     private lateinit var reqBox: LinearLayout
     private lateinit var peopleCard: LinearLayout
+    private lateinit var btnChat: Button
     private lateinit var peopleBox: LinearLayout
     private lateinit var peopleTitle: TextView
     private lateinit var tvNow: TextView
@@ -196,6 +197,10 @@ class MainActivity : Activity() {
             npSkip.visibility = View.GONE
         }
         renderPeople(if (on) st.p2pPeople + st.wifiPeople else emptyList())
+        btnChat.visibility = if (on) View.VISIBLE else View.GONE
+        btnChat.text = if (st.chatUnread > 0) "Чат эфира · ${st.chatUnread} новых" else "Чат эфира"
+        btnChat.background = shape(if (st.chatUnread > 0) Ui.LILAC else Ui.PANEL, 99)
+        btnChat.setTextColor(if (st.chatUnread > 0) Ui.INK else Ui.MILK)
 
         val total = st.p2pListeners + st.localListeners
         tvCount.visibility = if (on) View.VISIBLE else View.GONE
@@ -345,13 +350,20 @@ class MainActivity : Activity() {
         }
         root.addView(tvHint, wide())
 
+        // чат эфира: кнопка со счётчиком новых сообщений
+        btnChat = pill(Ui.PANEL, Ui.MILK, 16f).apply {
+            visibility = View.GONE; setPadding(0, px(14), 0, px(14))
+            setOnClickListener { startActivity(Intent(this@MainActivity, ChatActivity::class.java)) }
+        }
+        root.addView(btnChat, wide(0))
+
         // кто слушает — с кнопкой «Отключить»
         peopleCard = card(22, 0).apply { visibility = View.GONE }
         peopleTitle = label("Слушают", 13f, Ui.DIM).apply { setPadding(px(16), px(14), px(16), px(4)) }
         peopleCard.addView(peopleTitle)
         peopleBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         peopleCard.addView(peopleBox)
-        root.addView(peopleCard, wide(0))
+        root.addView(peopleCard, wide(12))
 
         // карточка «Позови друзей»: сверху QR и ссылка, снизу две кнопки поровну на всю ширину
         shareCard = LinearLayout(this).apply {

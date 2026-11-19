@@ -46,9 +46,17 @@ class CaptureService : Service() {
         val nowTitle: String? = null,                // что играет (видят пущенные слушатели)
         val nowArtist: String? = null,
         val nowCover: android.graphics.Bitmap? = null,
+        val chatUnread: Int = 0,                     // новых сообщений в чате, пока экран чата не открыт
         val autoAllow: Boolean = false,
         val error: String? = null,
     )
+
+    /** Сообщение чата. fromKey — кто написал (для «Отключить автора»), слушателям не отправляется. */
+    data class ChatMsg(val id: Int, val name: String, val text: String, val host: Boolean,
+                       val fromKey: String?, val nonce: String, val ts: Long) {
+        fun json(): org.json.JSONObject = org.json.JSONObject().put("id", id).put("name", name).put("text", text)
+            .put("host", host).put("n", nonce).put("ts", ts)
+    }
 
     /** Слушатель. key как у Request. */
     data class Person(val key: String, val name: String) {
@@ -77,6 +85,12 @@ class CaptureService : Service() {
         const val ACTION_DECIDE = "dev.smoke.wavecast.DECIDE"
         const val ACTION_AUTO = "dev.smoke.wavecast.AUTO"
         const val ACTION_KICK = "dev.smoke.wavecast.KICK"
+        const val ACTION_CHAT_SEND = "dev.smoke.wavecast.CHAT_SEND"
+        const val ACTION_CHAT_READ = "dev.smoke.wavecast.CHAT_READ"
+        const val EXTRA_TEXT = "text"
+        private const val CHAT_CHANNEL_ID = "wavecast_chat"
+        private const val CHAT_NOTIF_ID = 2
+        private const val HISTORY = 30
         const val EXTRA_NOW_PLAYING = "nowPlaying"
         const val EXTRA_REQ = "req"
         const val EXTRA_ALLOW = "allow"
@@ -96,6 +110,11 @@ class CaptureService : Service() {
         var listener: ((Status) -> Unit)? = null
         /** Реакции слушателей (имя, эмодзи) — для всплывающих эмодзи на главном экране. */
         var reactionListener: ((String, String) -> Unit)? = null
+        /** Чат текущего эфира (не сохраняется после эфира). */
+        @Volatile var chat: List<ChatMsg> = emptyList(); private set
+        var chatListener: (() -> Unit)? = null
+        /** Экран чата открыт — не считаем непрочитанные и не шлём уведомления. */
+        @Volatile var chatVisible = false
         private fun react(name: String, e: String) = main.post { reactionListener?.invoke(name, e) }
 
         private fun publish(s: Status) {
@@ -123,6 +142,8 @@ class CaptureService : Service() {
             ACTION_DECIDE -> decide(intent.getStringExtra(EXTRA_REQ).orEmpty(), intent.getBooleanExtra(EXTRA_ALLOW, false))
             ACTION_AUTO -> setAuto(intent.getBooleanExtra(EXTRA_AUTO, false))
             ACTION_KICK -> kick(intent.getStringExtra(EXTRA_REQ).orEmpty())
+            ACTION_CHAT_SEND -> intent.getStringExtra(EXTRA_TEXT)?.let { chatIn(null, "Ведущий", it, "") }
+            ACTION_CHAT_READ -> chatRead()
         }
         return START_NOT_STICKY
     }
@@ -157,7 +178,8 @@ class CaptureService : Service() {
                     onRequest = { id, name -> main.post { addRequest(Request("w:$id", name)) } },
                     onRequestGone = { id -> main.post { removeRequest("w:$id") } },
                     onPeople = { l -> main.post { publish(status.copy(wifiPeople = l.map { Person("w:${it.first}", it.second) })) } },
-                    onReaction = { n, e -> react(n, e) })
+                    onReaction = { n, e -> react(n, e) },
+                    onChat = { id, n, t, nonce -> main.post { chatIn("w:$id", n, t, nonce) } })
             }.getOrNull()
         }
         if (srv == null) { fail("Порты $want–${want + 9} заняты"); return }
@@ -184,7 +206,8 @@ class CaptureService : Service() {
                     val people = l.map { Person("p:${it.first}", it.second) }
                     if (people != status.p2pPeople) publish(status.copy(p2pPeople = people))
                 },
-                reactionCb = { n, e -> react(n, e) })
+                reactionCb = { n, e -> react(n, e) },
+                chatCb = { id, n, t, nonce -> chatIn("p:$id", n, t, nonce) })
         }
 
         val rec = try { buildRecorder(mp, messengerUids()) } catch (e: Exception) { fail("AudioRecord: ${e.message}"); return }
@@ -223,6 +246,58 @@ class CaptureService : Service() {
         val id = key.substringAfter(':')
         if (key.startsWith("p:")) p2p?.decide(id, allow) else local?.decide(id, allow)
         removeRequest(key)
+    }
+
+    // ---- чат ----
+
+    private var chatSeq = 0
+
+    /** Сообщение от слушателя (fromKey) или от ведущего (fromKey = null): оформить, сохранить, разослать всем. */
+    private fun chatIn(fromKey: String?, name: String, raw: String, nonce: String) {
+        if (!status.running) return
+        val text = raw.replace(Regex("\\s+"), " ").trim().take(200)
+        if (text.isEmpty()) return
+        val m = ChatMsg(++chatSeq, name.take(24), text, fromKey == null, fromKey, nonce, System.currentTimeMillis())
+        chat = (chat + m).takeLast(200)
+        val out = m.json().put("type", "chat").toString()
+        p2p?.chatOut(out)
+        local?.chatOut(out)
+        val hist = org.json.JSONArray(chat.takeLast(HISTORY).map { it.json() }).toString()
+        p2p?.history(hist)
+        local?.history(hist)
+        if (fromKey != null && !chatVisible) {
+            publish(status.copy(chatUnread = status.chatUnread + 1))
+            chatNotification()
+        }
+        main.post { chatListener?.invoke() }
+    }
+
+    private fun chatRead() {
+        getSystemService(NotificationManager::class.java).cancel(CHAT_NOTIF_ID)
+        if (status.chatUnread != 0) publish(status.copy(chatUnread = 0))
+    }
+
+    /** Тихое уведомление: последние сообщения, без звука и вибрации — не мешаем музыке. */
+    private fun chatNotification() {
+        val nm = getSystemService(NotificationManager::class.java)
+        if (nm.getNotificationChannel(CHAT_CHANNEL_ID) == null) {
+            nm.createNotificationChannel(NotificationChannel(CHAT_CHANNEL_ID, "Чат эфира", NotificationManager.IMPORTANCE_LOW))
+        }
+        val unread = status.chatUnread
+        val style = Notification.InboxStyle()
+        chat.filter { !it.host }.takeLast(minOf(unread, 5)).forEach { style.addLine("${it.name}: ${it.text}") }
+        val open = PendingIntent.getActivity(this, 3, Intent(this, ChatActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        val last = chat.lastOrNull { !it.host }
+        val n = Notification.Builder(this, CHAT_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_wave)
+            .setContentTitle(if (unread > 1) "Чат эфира: $unread новых" else "Чат эфира")
+            .setContentText(last?.let { "${it.name}: ${it.text}" } ?: "")
+            .setStyle(style)
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
+            .build()
+        nm.notify(CHAT_NOTIF_ID, n)
     }
 
     private fun kick(key: String) {
@@ -344,6 +419,9 @@ class CaptureService : Service() {
         recorder = null
         nowPlaying?.stop()
         nowPlaying = null
+        chat = emptyList(); chatSeq = 0                 // чат не сохраняется после эфира
+        getSystemService(NotificationManager::class.java).cancel(CHAT_NOTIF_ID)
+        main.post { chatListener?.invoke() }
         p2p?.let { runCatching { it.close() } }
         p2p = null
         local = null

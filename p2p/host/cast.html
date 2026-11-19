@@ -19,6 +19,10 @@
 // слушатель шлёт {type:"react", e:"🔥"}; реакции расходятся остальным слушателям и в приложение.
 // Приложение: wcTrack(json|null) — сменился трек, wcKick(id) — отключить слушателя.
 // В onState приходит people: [{id, name}] — кто сейчас слушает.
+//
+// Чат: слушатель шлёт {type:"chat", text, n}; страница передаёт его в приложение (onChat), приложение
+// оформляет сообщение и рассылает обратно через wcChatOut(msg) всем — и по ссылке, и в Wi-Fi.
+// wcHistory([...]) — последние сообщения, их получает каждый новый слушатель.
 (() => {
   const P = new URLSearchParams(location.hash.slice(1));
   const signal = (P.get('signal') || '').replace(/^http/, 'ws').replace(/\/+$/, '');
@@ -35,6 +39,7 @@
   const meta = new Map();    // id слушателя → {name, cid, dc, lastReact}
   const EMOJI = ['🔥', '❤️', '😂', '👏', '🎉', '😍'];
   let nowPlaying = null;     // {title, artist, cover} или null
+  let history = [];          // последние сообщения чата для новичков
   let sig, ice = [], track, stream, sigUp = false, error = null, retry = 500, fatal = false, lastStatus = '';
 
   const connected = () => [...peers.values()].filter(p => p.connectionState === 'connected').length;
@@ -114,7 +119,16 @@
   // сообщения от слушателя по каналу данных
   function onData(id, d) {
     const m = meta.get(id);
-    if (!m || d.type !== 'react' || !EMOJI.includes(d.e)) return;
+    if (!m) return;
+    if (d.type === 'chat') {
+      const text = String(d.text || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+      const now = Date.now();
+      if (!text || now - (m.lastChat || 0) < 1000) return;   // не чаще раза в секунду
+      m.lastChat = now;
+      bridge('onChat', id, m.name, text, String(d.n || '').slice(0, 24));
+      return;
+    }
+    if (d.type !== 'react' || !EMOJI.includes(d.e)) return;
     const now = Date.now();
     if (now - (m.lastReact || 0) < 600) return;     // не чаще ~2 в секунду от одного слушателя
     m.lastReact = now;
@@ -133,7 +147,10 @@
     const m = meta.get(id) || { name: 'Гость', cid: id };
     meta.set(id, m);
     m.dc = pc.createDataChannel('meta');
-    m.dc.onopen = () => { if (nowPlaying) dcSend(m.dc, { type: 'track', ...nowPlaying }); };
+    m.dc.onopen = () => {
+      if (nowPlaying) dcSend(m.dc, { type: 'track', ...nowPlaying });
+      dcSend(m.dc, { type: 'chat-history', items: history });
+    };
     m.dc.onmessage = e => { try { onData(id, JSON.parse(e.data)); } catch {} };
     pc.onicecandidate = e => { if (e.candidate) send({ to: id, type: 'ice', candidate: e.candidate }); };
     pc.onconnectionstatechange = () => {
@@ -201,6 +218,9 @@
     nowPlaying = t && t.title ? { title: t.title, artist: t.artist || '', cover: t.cover || '' } : null;
     toAll({ type: 'track', ...(nowPlaying || { title: null }) });
   };
+  // чат: приложение рассылает готовое сообщение и обновляет историю для новичков
+  window.wcChatOut = msg => toAll({ type: 'chat', ...msg });
+  window.wcHistory = items => { history = Array.isArray(items) ? items : []; };
   window.wcAuto = on => {
     auto = !!on;
     if (auto) for (const id of [...pending.keys()]) window.wcDecide(id, true);

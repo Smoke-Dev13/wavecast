@@ -1,8 +1,8 @@
 {
-  "versionCode": 19,
-  "versionName": "0.9.2",
-  "url": "wavecast.apk?v=19",
-  "sha256": "b7f259e1c969031008921031cd44d323a37fed3139f89c25d2d8fd46dadf3918",
-  "size": 1152050,
-  "notes": "Реакции одной кнопкой со стопкой, обложка трека во весь экран"
+  "versionCode": 20,
+  "versionName": "0.10.0",
+  "url": "wavecast.apk?v=20",
+  "sha256": "d243e9fa7454bb4d5a8a3d410ab05bc9fd63c9aff23a84e70795b2abd6fa896f",
+  "size": 1164338,
+  "notes": "Чат эфира"
 }
