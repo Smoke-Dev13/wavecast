@@ -1,7 +1,19 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
+
+// Ключ подписи хранится только у владельца, в репозиторий не попадает.
+// Берётся из android/keystore.properties (storeFile, storePassword, keyAlias, keyPassword)
+// или из переменных окружения WAVECAST_KEYSTORE, WAVECAST_STORE_PASSWORD, WAVECAST_KEY_ALIAS, WAVECAST_KEY_PASSWORD.
+val signProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun sign(prop: String, env: String): String? = signProps.getProperty(prop) ?: System.getenv(env)
+val storePath: String? = sign("storeFile", "WAVECAST_KEYSTORE")
 
 android {
     namespace = "dev.smoke.wavecast"
@@ -15,23 +27,13 @@ android {
         versionName = "0.9.2"
     }
 
-    // Ключ подписи хранится только у владельца, в репозиторий не попадает.
-    // Берётся из android/keystore.properties (storeFile, storePassword, keyAlias, keyPassword)
-    // или из переменных окружения WAVECAST_KEYSTORE, WAVECAST_STORE_PASSWORD, WAVECAST_KEY_ALIAS, WAVECAST_KEY_PASSWORD.
-    val signProps = java.util.Properties().apply {
-        val f = rootProject.file("keystore.properties")
-        if (f.exists()) f.inputStream().use { load(it) }
-    }
-    fun sign(prop: String, env: String): String? = signProps.getProperty(prop) ?: System.getenv(env)
-    val storePath = sign("storeFile", "WAVECAST_KEYSTORE")
-
     signingConfigs {
-        if (storePath != null) create("release") {
-            storeFile = rootProject.file(storePath)
+        storePath?.let { path -> create("release") {
+            storeFile = rootProject.file(path)
             storePassword = sign("storePassword", "WAVECAST_STORE_PASSWORD")
             keyAlias = sign("keyAlias", "WAVECAST_KEY_ALIAS") ?: "wavecast"
             keyPassword = sign("keyPassword", "WAVECAST_KEY_PASSWORD") ?: storePassword
-        }
+        } }
     }
 
     buildTypes {
