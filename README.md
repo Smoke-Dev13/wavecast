@@ -12,7 +12,7 @@
 
 ## Быстрый старт
 
-**1. Сигнальный сервис** — один раз, бесплатный Cloudflare, только мышкой:
+**1. Сигнальный сервис** — один раз, бесплатный Cloudflare:
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Smoke-Dev13/wavecast/tree/main/p2p/worker)
 
