@@ -50,7 +50,15 @@ jobs:
           else
             echo "::warning::нет секрета WAVECAST_KEYSTORE_B64 — APK будет неподписанным"
           fi
-          gradle -p android assembleRelease --no-daemon
+          # ошибки — в аннотации: их видно на странице запуска без входа в GitHub
+          set +e
+          gradle -p android assembleRelease --no-daemon --console=plain 2>&1 | tee build.log
+          code=${PIPESTATUS[0]}
+          set -e
+          if [ "$code" != 0 ]; then
+            grep -E "^e: |error:|What went wrong|^> |Could not|FAILED" build.log | head -25 | while IFS= read -r l; do echo "::error::$l"; done
+            exit "$code"
+          fi
           cp android/app/build/outputs/apk/release/app-release*.apk wavecast.apk
       - uses: actions/upload-artifact@v4
         with:
