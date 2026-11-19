@@ -103,17 +103,17 @@ class SettingsActivity : Activity() {
         // шапка: круглая «назад» + заголовок
         val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         head.addView(label("←", 20f, Ui.MILK, Ui.bold).apply {
-            gravity = Gravity.CENTER; background = shape(Ui.PANEL, 99)
+            gravity = Gravity.CENTER; background = glass(99)
             contentDescription = "Назад"
             setOnClickListener { finish() }
             pressable(this)
         }, LinearLayout.LayoutParams(px(40), px(40)))
-        head.addView(label("Настройки", 24f, Ui.MILK, Ui.display).apply { letterSpacing = -0.03f; setPadding(px(12), 0, 0, 0) })
+        head.addView(label("Настройки", 24f, Ui.MILK, Ui.tech).apply { letterSpacing = 0.02f; setPadding(px(12), 0, 0, 0) })
         root.addView(head, wide(6))
 
         if (CaptureService.status.running) {
             root.addView(label("Эфир идёт: название и адрес поменяются в следующем эфире", 14f, Ui.MILK).apply {
-                background = shape(Ui.PANEL, 16); setPadding(px(16), px(12), px(16), px(12))
+                background = glass(16); setPadding(px(16), px(12), px(16), px(12))
             }, wide(18))
         }
 
@@ -175,7 +175,7 @@ class SettingsActivity : Activity() {
             setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Updater.REPO_URL))) }
         })
 
-        return ScrollView(this).apply { setBackgroundColor(Ui.BG); isFillViewport = true; addView(root) }
+        return ScrollView(this).apply { background = Backdrop(this@SettingsActivity).apply { glowY = 0f }; isFillViewport = true; addView(root) }
     }
 
     companion object {

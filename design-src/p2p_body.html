@@ -21,7 +21,7 @@
     <label for="name">Как тебя зовут? Ведущий увидит имя в запросе</label>
     <input id="name" maxlength="24" autocomplete="nickname" placeholder="Например, Аня">
   </div>
-  <div class="now" id="now"><img id="cover" alt=""><div><div class="t" id="title"></div><div class="a" id="artist"></div></div></div>
+  <div class="now br" id="now"><img id="cover" alt=""><div><div class="t" id="title"></div><div class="a" id="artist"></div></div></div>
   <div class="ctl">
     <label class="vol">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 4V5L7 9H3zm12.5 3a4 4 0 0 0-2-3.46v6.92a4 4 0 0 0 2-3.46z"/></svg>
@@ -86,7 +86,7 @@ RING_JS
   //  3) и это не помогло (48 символов без дефисов) — только тогда перенос где угодно.
   // Пересчитываем при подгрузке шрифта и при любом изменении ширины.
   function fitTitle() {
-    const h = $('room'), box = h.parentElement.clientWidth;
+    const h = $('room'), cs = getComputedStyle(h.parentElement), box = h.parentElement.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     if (!box) return;                                   // страница скрыта — посчитаем, когда покажут
     const fits = () => h.scrollWidth <= box + 1;
     h.className = ''; h.style.fontSize = '';

@@ -115,7 +115,9 @@ class CaptureService : Service() {
         var chatListener: (() -> Unit)? = null
         /** Экран чата открыт — не считаем непрочитанные и не шлём уведомления. */
         @Volatile var chatVisible = false
-        private fun react(name: String, e: String) = main.post { reactionListener?.invoke(name, e) }
+        /** Сколько реакций пришло за текущий эфир — для плитки на главном экране. */
+        @Volatile var reactionCount = 0; private set
+        private fun react(name: String, e: String) = main.post { reactionCount++; reactionListener?.invoke(name, e) }
 
         private fun publish(s: Status) {
             status = s
@@ -149,6 +151,7 @@ class CaptureService : Service() {
     }
 
     private fun start(intent: Intent) {
+        reactionCount = 0
         // Android 14: startForeground с типом mediaProjection строго ДО getMediaProjection()
         startForeground(NOTIF_ID, buildNotification("Запуск…"), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
 

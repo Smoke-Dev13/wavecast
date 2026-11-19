@@ -35,8 +35,14 @@ class MainActivity : Activity() {
     private lateinit var tvLink: TextView
     private lateinit var ivQr: ImageView
     private lateinit var tvLive: TextView
-    private lateinit var tvCount: TextView
-    private lateinit var tvCountLabel: TextView
+    private lateinit var tiles: LinearLayout
+    private lateinit var tileListen: TextView
+    private lateinit var tileWait: TextView
+    private lateinit var tileReact: TextView
+    private lateinit var tvArtist: TextView
+    private lateinit var btnBox: android.widget.FrameLayout
+    private lateinit var scroll: ScrollView
+    private val backdrop by lazy { Backdrop(this) }
     private lateinit var reqBox: LinearLayout
     private lateinit var peopleCard: LinearLayout
     private lateinit var btnChat: Button
@@ -168,17 +174,18 @@ class MainActivity : Activity() {
         val on = st.running
         btn.live = on
         tvCaption.visibility = if (on) View.GONE else View.VISIBLE
-        tvLive.text = if (on) "в эфире" else "не в эфире"
+        tvLive.text = if (on) "В ЭФИРЕ" else "НЕ В ЭФИРЕ"
         tvLive.setTextColor(if (on) Ui.MILK else Ui.DIM)
         tvLive.setCompoundDrawablesRelativeWithIntrinsicBounds(dot(if (on) Ui.CORAL else Ui.DIM), null, null, null)
 
-        tvRoom.text = android.text.SpannableStringBuilder("Эфир  ").append(s.room,
-            android.text.style.ForegroundColorSpan(Ui.MILK), 0).append("  ›")
-        tvRoom.visibility = if (on) View.GONE else View.VISIBLE
-        tvHint.visibility = tvRoom.visibility
+        tvRoom.text = s.room
+        tvRoom.isClickable = !on
+        tvHint.visibility = if (on) View.GONE else View.VISIBLE
 
         nowRow.visibility = if (on && st.nowTitle != null) View.VISIBLE else View.GONE
-        tvNow.text = (if (st.nowCover == null) "♪  " else "") + st.nowTitle + (st.nowArtist?.takeIf { it.isNotBlank() }?.let { " — $it" } ?: "")
+        tvNow.text = st.nowTitle ?: ""
+        tvArtist.text = st.nowArtist ?: ""
+        tvArtist.visibility = if (st.nowArtist.isNullOrBlank()) View.GONE else View.VISIBLE
         ivNow.visibility = if (st.nowCover != null) View.VISIBLE else View.GONE
         if (st.nowCover != null) ivNow.setImageBitmap(st.nowCover)
         npCard.visibility = if (!on && s.showNowPlaying && !NowPlaying.allowed(this)) View.VISIBLE else View.GONE
@@ -198,15 +205,17 @@ class MainActivity : Activity() {
         }
         renderPeople(if (on) st.p2pPeople + st.wifiPeople else emptyList())
         btnChat.visibility = if (on) View.VISIBLE else View.GONE
-        btnChat.text = if (st.chatUnread > 0) "Чат эфира · ${st.chatUnread} новых" else "Чат эфира"
-        btnChat.background = shape(if (st.chatUnread > 0) Ui.LILAC else Ui.PANEL, 99)
+        btnChat.text = if (st.chatUnread > 0) "Чат эфира +${st.chatUnread}" else "Чат эфира"
+        btnChat.background = if (st.chatUnread > 0) shape(Ui.LILAC, 99) else glass(99)
         btnChat.setTextColor(if (st.chatUnread > 0) Ui.INK else Ui.MILK)
 
         val total = st.p2pListeners + st.localListeners
-        tvCount.visibility = if (on) View.VISIBLE else View.GONE
-        tvCount.text = "$total"
-        tvCountLabel.visibility = tvCount.visibility
-        tvCountLabel.text = (if (total % 10 == 1 && total % 100 != 11) "слушает" else "слушают") + " · " + s.room
+        tiles.visibility = if (on) View.VISIBLE else View.GONE
+        tileListen.text = "$total"
+        (tileListen.tag as TextView).text = if (total % 10 == 1 && total % 100 != 11) "слушает" else "слушают"
+        tileWait.text = "${st.requests.size}"
+        tileWait.setTextColor(if (st.requests.isNotEmpty()) Ui.CORAL else Ui.MILK)
+        tileReact.text = "${CaptureService.reactionCount}"
 
         val url = if (on) link(st) else null
         shareCard.visibility = if (url != null) View.VISIBLE else View.GONE
@@ -242,16 +251,18 @@ class MainActivity : Activity() {
 
         // шапка: марка, статус эфира, настройки
         val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        head.addView(label("WaveCast", 15f, Ui.MILK, Ui.display), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        tvLive = label("не в эфире", 13f, Ui.DIM, Ui.bold).apply {
-            setPadding(px(12), px(8), px(13), px(8)); background = shape(Ui.PANEL, 99)
+        head.addView(label("WAVECAST", 18f, Ui.MILK, Ui.tech).apply { letterSpacing = 0.08f },
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        tvLive = label("НЕ В ЭФИРЕ", 12f, Ui.DIM, Ui.tech).apply {
+            letterSpacing = 0.06f
+            setPadding(px(12), px(9), px(13), px(9)); background = glass(99)
             compoundDrawablePadding = px(7); gravity = Gravity.CENTER_VERTICAL
         }
         head.addView(tvLive)
         head.addView(ImageView(this).apply {
             setImageResource(R.drawable.ic_settings)
             contentDescription = "Настройки"
-            background = shape(Ui.PANEL, 99)
+            background = glass(99)
             setPadding(px(10), px(10), px(10), px(10))
             setOnClickListener { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
             pressable(this)
@@ -261,7 +272,7 @@ class MainActivity : Activity() {
         // плашка «вышло обновление»
         updCard = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL; visibility = View.GONE
-            background = shape(Ui.PANEL, 20); setPadding(px(16), px(12), px(12), px(12))
+            background = glass(20); setPadding(px(16), px(12), px(12), px(12))
         }
         val updText = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         updTitle = label("", 15f, Ui.MILK, Ui.bold)
@@ -272,9 +283,9 @@ class MainActivity : Activity() {
         updCard.addView(updBtn, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = px(10) })
         root.addView(updCard, wide(16))
 
-        root.addView(label("Твоё радио", 34f, Ui.MILK, Ui.display).apply { letterSpacing = -0.04f }, wide(28))
-        tvRoom = label("", 15f, Ui.DIM).apply {
-            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, px(8), 0, px(8))
+        root.addView(label("Частота", 13f, Ui.DIM), wide(26))
+        tvRoom = label("", 28f, Ui.MILK, Ui.tech).apply {
+            maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, px(4), 0, px(4))
             setOnClickListener { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
         }
         root.addView(tvRoom, wide(2))
@@ -314,36 +325,55 @@ class MainActivity : Activity() {
         root.addView(reqBox, wide())
 
         // сцена: круглая кнопка по центру свободного места
-        val stage = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
-        btn = PulseButton(this)
-        // кнопка + слой для летящих реакций поверх неё
-        val btnBox = android.widget.FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
-        btnBox.addView(btn, android.widget.FrameLayout.LayoutParams(px(290), px(290)))
+        // сцена: волна поперёк экрана, кнопка эфира на ней, сверху — слой для летящих реакций
+        val stage = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; clipChildren = false }
+        btn = PulseButton(this).apply { onLevel = { backdrop.lv = it } }
+        btnBox = android.widget.FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
+        val full = android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+        btnBox.addView(btn, android.widget.FrameLayout.LayoutParams(full, full))
         floats = android.widget.FrameLayout(this).apply { clipChildren = false; isClickable = false; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }
-        btnBox.addView(floats, android.widget.FrameLayout.LayoutParams(px(290), px(290)))
-        stage.clipChildren = false
-        stage.addView(btnBox, LinearLayout.LayoutParams(px(290), px(290)))
-        tvCaption = label("В эфир", 18f, Ui.MILK, Ui.display).apply { gravity = Gravity.CENTER; letterSpacing = -0.02f }
-        stage.addView(tvCaption, wide(-14))
-        tvCount = label("0", 44f, Ui.LILAC, Ui.display).apply { gravity = Gravity.CENTER; visibility = View.GONE }
-        stage.addView(tvCount, wide(-10))
-        tvCountLabel = label("", 14f, Ui.DIM).apply {
-            gravity = Gravity.CENTER; visibility = View.GONE; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
-        }
-        stage.addView(tvCountLabel, wide(6))
-        // что играет: маленькая обложка (нажми — откроется крупно) и название
-        nowRow = LinearLayout(this).apply { gravity = Gravity.CENTER; visibility = View.GONE; setPadding(px(16), 0, px(16), 0) }
+        btnBox.addView(floats, android.widget.FrameLayout.LayoutParams(full, full))
+        // волна идёт от края до края экрана, поверх отступов
+        stage.addView(btnBox, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, px(250)).apply {
+            marginStart = -px(22); marginEnd = -px(22) })
+        tvCaption = label("В ЭФИР", 15f, Ui.MILK, Ui.tech).apply { gravity = Gravity.CENTER; letterSpacing = 0.1f }
+        stage.addView(tvCaption, wide(-6))
+        root.addView(stage, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f).apply { topMargin = px(4); bottomMargin = px(4) })
+
+        // что играет: обложка со скобами (нажми — откроется крупно), крупное тонкое название
+        nowRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; visibility = View.GONE }
         ivNow = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.CENTER_CROP; clipToOutline = true; background = shape(Ui.PANEL, 8)
+            scaleType = ImageView.ScaleType.CENTER_CROP; background = hud(2); setPadding(px(1), px(1), px(1), px(1))
             contentDescription = "Обложка, нажми, чтобы увеличить"
             setOnClickListener { bigCover() }
         }
-        nowRow.addView(ivNow, LinearLayout.LayoutParams(px(36), px(36)).apply { marginEnd = px(10) })
-        tvNow = label("", 14f, Ui.MILK).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
-        nowRow.addView(tvNow, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        nowRow.addView(ivNow, LinearLayout.LayoutParams(px(58), px(58)).apply { marginEnd = px(14) })
+        val nowText = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        tvNow = label("", 24f, Ui.MILK, Ui.light).apply {
+            maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; letterSpacing = -0.03f; setLineSpacing(0f, 1.05f)
+        }
+        nowText.addView(tvNow)
+        tvArtist = label("", 15f, Ui.DIM).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
+        nowText.addView(tvArtist, wide(5))
+        nowRow.addView(nowText, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         nowRow.setOnClickListener { bigCover() }
-        stage.addView(nowRow, wide(12))
-        root.addView(stage, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f).apply { topMargin = px(8); bottomMargin = px(8) })
+        root.addView(nowRow, wide(4))
+
+        // плитки со скобами: слушают / ждут входа / реакций
+        tiles = LinearLayout(this).apply { visibility = View.GONE }
+        fun tile(sub: String, start: Int): TextView {
+            val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; background = hud(4); setPadding(px(12), px(10), px(12), px(10)) }
+            val num = label("0", 24f, Ui.MILK, Ui.tech)
+            val cap = label(sub, 12f, Ui.DIM).apply { maxLines = 1 }
+            num.tag = cap
+            box.addView(num); box.addView(cap, wide(3))
+            tiles.addView(box, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = px(start) })
+            return num
+        }
+        tileListen = tile("слушают", 0)
+        tileWait = tile("ждут входа", 8)
+        tileReact = tile("реакций", 8)
+        root.addView(tiles, wide(16))
 
         tvHint = label("Включай музыку в любом приложении — друзья услышат то же, что и ты", 15f, Ui.DIM).apply {
             gravity = Gravity.CENTER; setLineSpacing(px(3).toFloat(), 1f); setPadding(px(12), 0, px(12), 0)
@@ -352,10 +382,10 @@ class MainActivity : Activity() {
 
         // чат эфира: кнопка со счётчиком новых сообщений
         btnChat = pill(Ui.PANEL, Ui.MILK, 16f).apply {
-            visibility = View.GONE; setPadding(0, px(14), 0, px(14))
+            visibility = View.GONE; setPadding(0, px(15), 0, px(15))
             setOnClickListener { startActivity(Intent(this@MainActivity, ChatActivity::class.java)) }
         }
-        root.addView(btnChat, wide(0))
+        root.addView(btnChat, wide(14))
 
         // кто слушает — с кнопкой «Отключить»
         peopleCard = card(22, 0).apply { visibility = View.GONE }
@@ -368,7 +398,7 @@ class MainActivity : Activity() {
         // карточка «Позови друзей»: сверху QR и ссылка, снизу две кнопки поровну на всю ширину
         shareCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; visibility = View.GONE
-            background = shape(Ui.PANEL, 22); setPadding(px(14), px(14), px(14), px(14))
+            background = glass(22); setPadding(px(14), px(14), px(14), px(14))
         }
         val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         ivQr = ImageView(this).apply {
@@ -399,7 +429,14 @@ class MainActivity : Activity() {
         tvStatus = label("", 13f, Ui.DIM).apply { setLineSpacing(px(2).toFloat(), 1f); visibility = View.GONE; gravity = Gravity.CENTER }
         root.addView(tvStatus, wide(12))
 
-        return ScrollView(this).apply { setBackgroundColor(Ui.BG); isFillViewport = true; addView(root) }
+        scroll = ScrollView(this).apply { background = backdrop; isFillViewport = true; addView(root) }
+        // свечение фона держим за кнопкой эфира, даже когда экран прокручен
+        val follow = {
+            backdrop.glowY = (btnBox.top + (btnBox.parent as View).top + btnBox.height / 2f - scroll.scrollY).coerceAtLeast(0f)
+        }
+        scroll.viewTreeObserver.addOnGlobalLayoutListener { follow() }
+        scroll.setOnScrollChangeListener { _, _, _, _, _ -> follow() }
+        return scroll
     }
 
     /** Обложка крупно, с названием — как QR. */
@@ -412,9 +449,9 @@ class MainActivity : Activity() {
             setOnClickListener { d.dismiss() }
         }
         box.addView(ImageView(this).apply {
-            setImageBitmap(art); scaleType = ImageView.ScaleType.CENTER_CROP; clipToOutline = true; background = shape(Ui.PANEL, 20)
+            setImageBitmap(art); scaleType = ImageView.ScaleType.CENTER_CROP; background = hud(2); setPadding(px(1), px(1), px(1), px(1))
         }, LinearLayout.LayoutParams(px(320), px(320)))
-        box.addView(label(st.nowTitle ?: "", 18f, Ui.MILK, Ui.display).apply {
+        box.addView(label(st.nowTitle ?: "", 24f, Ui.MILK, Ui.light).apply {
             gravity = Gravity.CENTER; maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; letterSpacing = -0.02f
         }, LinearLayout.LayoutParams(px(320), LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = px(16) })
         st.nowArtist?.takeIf { it.isNotBlank() }?.let {
@@ -422,7 +459,7 @@ class MainActivity : Activity() {
                 LinearLayout.LayoutParams(px(320), LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = px(4) })
         }
         d.setContentView(box)
-        d.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.parseColor("#F00F0D1A")))
+        d.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.parseColor("#F2110E1C")))
         d.window?.setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT)
         box.gravity = Gravity.CENTER
         d.show()
@@ -471,9 +508,9 @@ class MainActivity : Activity() {
         val v = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
         v.addView(label(e, 30f).apply { includeFontPadding = true })
         v.addView(label(name.take(12), 11f, Ui.DIM, Ui.bold))
-        val size = px(290)
+        tileReact.text = "${CaptureService.reactionCount}"
         val lp = android.widget.FrameLayout.LayoutParams(android.widget.FrameLayout.LayoutParams.WRAP_CONTENT, android.widget.FrameLayout.LayoutParams.WRAP_CONTENT)
-        lp.leftMargin = (size * (0.18 + Math.random() * 0.55)).toInt(); lp.topMargin = (size * 0.55).toInt()
+        lp.leftMargin = (floats.width * (0.25 + Math.random() * 0.45)).toInt(); lp.topMargin = (floats.height * 0.5).toInt()
         floats.addView(v, lp)
         v.alpha = 0f; v.scaleX = 0.6f; v.scaleY = 0.6f
         v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(-px(40).toFloat()).setDuration(260).withEndAction {

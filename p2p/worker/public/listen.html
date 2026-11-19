@@ -3,70 +3,91 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#191627">
+<meta name="theme-color" content="#110E1C">
 <title>WaveCast</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22%3E%3Crect width=%2224%22 height=%2224%22 rx=%226%22 fill=%22%23191627%22/%3E%3Cpath fill=%22%23BFB0F5%22 d=%22M5 10h2.4v4H5zM9 7h2.4v10H9zM13 4h2.4v16H13zM17 9h2.4v6H17z%22/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;800&family=Onest:wght@400;600;700&display=swap">
+<link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300;700;800&family=Jura:wght@500;600;700&family=Onest:wght@400;600;700&display=swap">
 <style>
   :root { --uv: #191627; --ink: #0F0D1A; --lemon: #BFB0F5; --gum: #F0A08C; --milk: #EFEAE2; --mint: #2A2640; --dim: #9C96B0;
           --display: "Unbounded", "Arial Black", "Segoe UI Black", system-ui, sans-serif;
-          --body: "Onest", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+          --body: "Onest", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+          --tech: "Jura", "Onest", system-ui, sans-serif; --night: #110E1C; --glow: #8C79E0; --lv: 0;
+          --glass: rgba(42,38,64,.42); --edge: rgba(239,234,226,.14); }
   * { box-sizing: border-box; }
-  html { background: var(--uv); }
+  html { background: var(--night); }
   body { margin: 0; min-height: 100vh; min-height: 100dvh; color: var(--milk); font: 400 16px/1.45 var(--body);
-         background: radial-gradient(120% 70% at 50% 45%, #2B2547 0%, var(--uv) 70%);
-         display: flex; justify-content: center; }
+         background: var(--night); display: flex; justify-content: center; position: relative; }
+  /* сетка осциллографа: видна у свечения и растворяется к краям */
+  body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+         background-image: linear-gradient(rgba(191,176,245,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(191,176,245,.06) 1px, transparent 1px);
+         background-size: 26px 26px; -webkit-mask-image: radial-gradient(circle at 50% 38%, #000 0, transparent 70%);
+         mask-image: radial-gradient(circle at 50% 38%, #000 0, transparent 70%); }
+  main { position: relative; z-index: 1; }
+  .glass, .pill, .now, #rxBtn, #chatBtn, .sticker, .who input { background: var(--glass); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+  /* уголки-скобы */
+  .br { position: relative; }
+  .br::before, .br::after { content: ""; position: absolute; width: 11px; height: 11px; border: 0 solid rgba(191,176,245,.8); pointer-events: none; }
+  .br::before { left: -1px; top: -1px; border-width: 1px 0 0 1px; }
+  .br::after { right: -1px; bottom: -1px; border-width: 0 1px 1px 0; }
   main { width: min(100%, 440px); padding: 20px 22px 28px; display: flex; flex-direction: column; }
   header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-  .brand { font: 800 15px/1 var(--display); color: var(--milk); letter-spacing: -.01em; }
-  .pill { font: 700 13px/1 var(--body); padding: 8px 12px; border-radius: 99px;
-          background: var(--mint); color: var(--dim); display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .brand { font: 700 17px/1 var(--tech); color: var(--milk); letter-spacing: .08em; text-transform: uppercase; }
+  .pill { font: 700 13px/1 var(--tech); letter-spacing: .04em; padding: 9px 13px; border-radius: 99px;
+          border: 1px solid var(--edge); color: var(--dim); display: flex; align-items: center; gap: 7px; white-space: nowrap; }
   .pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
   .pill.live { color: var(--milk); }
   .pill.live i { background: var(--gum); animation: blink 2s ease-in-out infinite; }
   @keyframes blink { 50% { opacity: .35; } }
-  h1 { margin: 26px 0 6px; font: 800 clamp(38px, 14vw, 72px)/1 var(--display); letter-spacing: -.04em;
+  h1 { margin: 26px 0 6px; font: 700 clamp(34px, 12vw, 60px)/1.02 var(--tech); letter-spacing: -.01em;
        color: var(--milk); white-space: nowrap; overflow-wrap: normal; hyphens: none; max-width: 100%; }
   h1.wrap { white-space: normal; }
   h1.squeeze { white-space: normal; overflow-wrap: anywhere; }
   #state { margin: 0; min-height: 24px; color: var(--dim); }
   #state.err { color: var(--gum); }
-  .stage { position: relative; width: min(100%, 330px); aspect-ratio: 1; margin: 14px auto 6px; display: grid; place-items: center; }
+  .stage { position: relative; width: 100%; height: 270px; margin: 10px auto 6px; display: grid; place-items: center; }
+  /* свечение: дышит само и разгорается от громкости */
+  .stage::before { content: ""; position: absolute; left: 50%; top: 50%; width: 320px; height: 320px; border-radius: 50%;
+         background: var(--glow); filter: blur(85px); pointer-events: none;
+         transform: translate(-50%, -50%) scale(calc(.92 + var(--lv) * .22)); opacity: calc(.78 + var(--lv) * .22);
+         animation: breathe 5s ease-in-out infinite; }
+  @keyframes breathe { 50% { filter: blur(95px); } }
   .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-  #btn { position: relative; width: 56%; aspect-ratio: 1; border-radius: 50%; border: 0; cursor: pointer;
-         background: var(--lemon); color: var(--ink); box-shadow: 0 14px 40px #0008; display: grid; place-items: center;
+  #btn { position: relative; width: 140px; aspect-ratio: 1; border-radius: 50%; border: 1px solid rgba(239,234,226,.38); cursor: pointer;
+         background: rgba(17,14,28,.38); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+         color: var(--milk); box-shadow: 0 18px 50px #0007; display: grid; place-items: center;
          transition: transform .08s, box-shadow .08s, background .15s; -webkit-tap-highlight-color: transparent; }
   #btn:active { transform: scale(.96); }
   #btn:focus-visible, .sticker:focus-visible, input:focus-visible { outline: 2px solid var(--milk); outline-offset: 4px; }
   .who input:focus-visible { outline-offset: 2px; }
-  #btn svg { width: 42%; height: 42%; }
+  #btn svg { width: 30%; height: 30%; }
+  #btn .play { margin-left: 6%; }
   #btn .stop { display: none; }
-  #btn.on { background: var(--milk); }
+  #btn.on { background: rgba(239,234,226,.12); }
   #btn.on .play { display: none; } #btn.on .stop { display: block; }
-  #btn:disabled { background: var(--mint); color: var(--dim); cursor: default; box-shadow: none; }
+  #btn:disabled { background: var(--glass); color: var(--dim); border-color: var(--edge); cursor: default; box-shadow: none; }
   #hint { text-align: center; margin: 0 0 20px; font: 600 15px/1.2 var(--body); color: var(--dim); }
-  .now { display: none; align-items: center; gap: 12px; margin: 0 0 18px; padding: 12px 14px; background: var(--mint); color: var(--milk);
-         border-radius: 18px; }
-  .now img { width: 52px; height: 52px; border-radius: 10px; object-fit: cover; flex: none; }
+  .now { display: none; align-items: center; gap: 14px; margin: 0 0 18px; padding: 12px 14px; color: var(--milk);
+         border: 1px solid var(--edge); border-radius: 4px; }
+  .now img { width: 56px; height: 56px; border-radius: 2px; object-fit: cover; flex: none; }
   .now a { color: inherit; text-decoration: none; min-width: 0; }
   .now > div, .now a { min-width: 0; flex: 1; }
   .now .t, .now .a { overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; word-break: normal; }
-  .now .t { font: 800 16px/1.25 var(--display); letter-spacing: -.02em;
+  .now .t { font: 300 22px/1.12 var(--display); letter-spacing: -.03em;
             display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
   .now .a { white-space: nowrap; } .now .a { color: var(--dim); }
   .dj { display: none; margin: 0 0 18px; padding: 12px 14px; background: var(--mint); color: var(--milk);
         border-radius: 18px 18px 18px 4px; }
   .who { display: flex; flex-direction: column; gap: 6px; margin: 0 0 18px; }
   .who label { font-size: 14px; color: var(--dim); }
-  .who input { font: 600 17px/1.2 var(--body); color: var(--milk); background: var(--mint); border: 0; border-radius: 14px;
+  .who input { font: 600 17px/1.2 var(--body); color: var(--milk); border: 1px solid var(--edge); border-radius: 14px;
          padding: 14px 16px; width: 100%; }
   .who input::placeholder { color: var(--dim); font-weight: 400; }
   .ctl { display: flex; align-items: center; gap: 14px; }
   .ctl .vol { flex: 1; }
   .rx { display: none; align-items: center; gap: 10px; flex: none; }
   .rxw { position: relative; }
-  #rxBtn, #chatBtn { width: 48px; height: 48px; border-radius: 50%; border: 0; background: var(--mint); font-size: 22px; line-height: 1;
+  #rxBtn, #chatBtn { width: 50px; height: 50px; border-radius: 50%; border: 1px solid var(--edge); font-size: 22px; line-height: 1;
            cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform .08s; user-select: none; -webkit-user-select: none; }
   #rxBtn:active, #chatBtn:active { transform: scale(.92); }
   #chatBtn { position: relative; font-size: 20px; }
@@ -74,7 +95,7 @@
            background: var(--gum); color: var(--ink); font: 700 12px/20px var(--body); text-align: center; }
   .badge[hidden] { display: none; }
   .stack { position: absolute; bottom: 58px; left: 50%; display: flex; flex-direction: column; gap: 4px; padding: 6px; z-index: 5;
-           background: var(--mint); border-radius: 30px; box-shadow: 0 14px 34px #000a;
+           background: #1C1830; border: 1px solid var(--edge); border-radius: 30px; box-shadow: 0 14px 34px #000a;
            opacity: 0; pointer-events: none; transform-origin: bottom center; transform: translateX(-50%) translateY(10px) scale(.9);
            transition: opacity .16s, transform .16s; }
   .stack.open { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0) scale(1); }
@@ -82,11 +103,11 @@
   .stack button:hover, .stack button:focus-visible { background: #ffffff14; outline: none; }
   .now img { cursor: zoom-in; }
   .sheet { position: fixed; z-index: 15; left: 50%; bottom: 0; transform: translateX(-50%); width: min(100%, 440px);
-           height: min(72vh, 600px); display: flex; flex-direction: column; background: #221E36; border-radius: 22px 22px 0 0;
+           height: min(72vh, 600px); display: flex; flex-direction: column; background: #1A1729; border: 1px solid var(--edge); border-bottom: 0; border-radius: 22px 22px 0 0;
            box-shadow: 0 -16px 50px #000b; padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); }
   .sheet[hidden] { display: none; }
   .sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-  .sheet-head b { font: 800 17px/1 var(--display); letter-spacing: -.02em; }
+  .sheet-head b { font: 700 17px/1 var(--tech); letter-spacing: .06em; text-transform: uppercase; }
   .sheet-head button { width: 36px; height: 36px; border: 0; border-radius: 50%; background: var(--mint); color: var(--milk); font-size: 16px; cursor: pointer; }
   .msgs { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 6px 2px; overscroll-behavior: contain; }
   .msgs .empty { color: var(--dim); text-align: center; margin: auto; font-size: 14px; padding: 0 20px; }
@@ -100,11 +121,11 @@
   .send input::placeholder { color: var(--dim); }
   .send button { border: 0; border-radius: 14px; padding: 0 16px; background: var(--lemon); color: var(--ink); font: 700 15px/1 var(--body); cursor: pointer; }
   .hint { min-height: 16px; font-size: 12px; color: var(--gum); margin-top: 4px; }
-  .viewer { position: fixed; inset: 0; z-index: 20; background: #0F0D1Af2; display: flex; flex-direction: column; align-items: center;
+  .viewer { position: fixed; inset: 0; z-index: 20; background: #110E1Cf2; display: flex; flex-direction: column; align-items: center;
             justify-content: center; padding: 24px; gap: 6px; cursor: zoom-out; }
   .viewer[hidden] { display: none; }
   .viewer img { width: min(86vw, 64vh, 560px); aspect-ratio: 1; object-fit: cover; border-radius: 20px; box-shadow: 0 24px 60px #000c; margin-bottom: 14px; }
-  .viewer .vt { font: 800 20px/1.25 var(--display); letter-spacing: -.02em; text-align: center; max-width: 86vw; }
+  .viewer .vt { font: 300 26px/1.15 var(--display); letter-spacing: -.03em; text-align: center; max-width: 86vw; }
   .viewer .va { color: var(--dim); text-align: center; max-width: 86vw; }
   @media (prefers-reduced-motion: reduce) { .stack { transition: none; } }
   .floats { position: absolute; inset: 0; pointer-events: none; overflow: visible; z-index: 2; }
@@ -123,12 +144,12 @@
   .tune { display: flex; align-items: center; gap: 12px; margin-top: 14px; font-size: 14px; color: var(--dim); }
   .tune output { width: 62px; text-align: right; }
   .foot { margin-top: 22px; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
-  .sticker { white-space: nowrap; flex: none; font: 700 15px/1 var(--body); padding: 14px 20px; border-radius: 99px; cursor: pointer;
-         background: var(--mint); color: var(--milk); border: 0;
+  .sticker { white-space: nowrap; flex: none; font: 700 14px/1 var(--tech); letter-spacing: .05em; text-transform: uppercase; padding: 15px 20px; border-radius: 99px; cursor: pointer;
+         color: var(--milk); border: 1px solid var(--edge);
          transition: transform .08s; }
   .sticker:active { transform: scale(.96); }
   .meta { font-size: 13px; text-align: right; color: var(--dim); line-height: 1.5; }
-  @media (prefers-reduced-motion: reduce) { .pill.live i { animation: none; } #btn, .sticker { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .pill.live i, .stage::before { animation: none; } #btn, .sticker { transition: none; } }
 </style>
 </head>
 <body>
@@ -152,7 +173,7 @@
     <label for="name">Как тебя зовут? Ведущий увидит имя в запросе</label>
     <input id="name" maxlength="24" autocomplete="nickname" placeholder="Например, Аня">
   </div>
-  <div class="now" id="now"><img id="cover" alt=""><div><div class="t" id="title"></div><div class="a" id="artist"></div></div></div>
+  <div class="now br" id="now"><img id="cover" alt=""><div><div class="t" id="title"></div><div class="a" id="artist"></div></div></div>
   <div class="ctl">
     <label class="vol">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 4V5L7 9H3zm12.5 3a4 4 0 0 0-2-3.46v6.92a4 4 0 0 0 2-3.46z"/></svg>
@@ -196,32 +217,42 @@
   const myName = () => $('name').value.trim().slice(0, 24) || 'Гость';
   const join = () => send({ type: 'join', name: myName(), cid });
 
-  // Живое кольцо вокруг кнопки: спектр звука в полярных координатах
+  // Волна осциллографа поперёк свечения: амплитуда идёт от спектра звука,
+  // громкость (--lv) раздувает свечение за кнопкой
   function ring(cv, getData) {
     const g = cv.getContext('2d'), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const css = getComputedStyle(document.documentElement), col = n => css.getPropertyValue(n).trim();
-    const N = 64, lvl = new Float32Array(N);
+    const host = cv.parentElement, N = 96, lvl = new Float32Array(N);
+    let phase = 0, glow = 0;
     function frame() {
-      const dpr = Math.min(devicePixelRatio || 1, 2), w = cv.clientWidth * dpr;
-      if (cv.width !== w) cv.width = cv.height = w;
-      const data = getData(), c = w / 2, base = w * 0.31, amp = w * 0.11;
-      g.clearRect(0, 0, w, w);
-      // три мягких полупрозрачных слоя: дальний реагирует сильнее всего
-      for (const [alpha, k, grow] of [[.10, 1.6, .05], [.16, 1, .02], [.26, .5, 0]]) {
-        g.beginPath();
-        for (let i = 0; i <= N; i++) {
-          const j = i % N, m = j < N / 2 ? j : N - j;               // зеркалим, чтобы кольцо смыкалось
-          const v = data ? data[2 + Math.floor(m * data.length / N * 0.9)] / 255 : 0;
-          if (i < N && k === 1.6) lvl[j] += (v - lvl[j]) * 0.3;
-          const soft = (lvl[(j + N - 1) % N] + 2 * lvl[j] + lvl[(j + 1) % N]) / 4;   // сглаживаем соседние лучи
-          const r = base + w * grow + (still ? 0 : soft) * amp * k, a = j / N * Math.PI * 2 - Math.PI / 2;
-          g[i ? 'lineTo' : 'moveTo'](c + r * Math.cos(a), c + r * Math.sin(a));
-        }
-        g.closePath(); g.globalAlpha = alpha; g.fillStyle = col('--lemon'); g.fill();
+      const dpr = Math.min(devicePixelRatio || 1, 2), w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
+      if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+      const data = getData(), mid = h / 2, amp = h * 0.36;
+      let sum = 0;
+      for (let i = 0; i < N; i++) {
+        const m = Math.abs(i - N / 2) / (N / 2);                 // бас в центре, верха по краям
+        const v = data ? data[2 + Math.floor(m * data.length * 0.6)] / 255 : 0;
+        lvl[i] += (v - lvl[i]) * 0.25; sum += lvl[i];
       }
+      const loud = sum / N;
+      glow += (loud - glow) * 0.1;
+      host.style.setProperty('--lv', glow.toFixed(3));
+      if (!still) phase += 0.05 + loud * 0.12;
+      g.clearRect(0, 0, w, h);
+      const path = () => {
+        g.beginPath();
+        for (let x = 0; x <= w; x += 3 * dpr) {
+          const i = Math.min(N - 1, Math.floor(x / w * N));
+          const edge = Math.sin(Math.PI * x / w);                  // к краям волна затихает
+          const a = (0.06 + lvl[i] * 0.94) * amp * edge;
+          const y = mid + Math.sin(x / w * 18 + phase) * a * Math.sin(x / w * 5.3 - phase * 0.4 + 1);
+          x ? g.lineTo(x, y) : g.moveTo(x, y);
+        }
+      };
+      g.strokeStyle = '#EFEAE2'; g.lineJoin = 'round';
+      path(); g.globalAlpha = 0.3; g.lineWidth = 6 * dpr; g.shadowColor = '#EFEAE2'; g.shadowBlur = 12 * dpr; g.stroke();
+      path(); g.globalAlpha = 0.95; g.lineWidth = 1.4 * dpr; g.shadowBlur = 0; g.stroke();
       g.globalAlpha = 1;
-      if (!still || !frame.done) requestAnimationFrame(frame);
-      frame.done = true;
+      requestAnimationFrame(frame);
     }
     frame();
   }
@@ -245,7 +276,7 @@
   //  3) и это не помогло (48 символов без дефисов) — только тогда перенос где угодно.
   // Пересчитываем при подгрузке шрифта и при любом изменении ширины.
   function fitTitle() {
-    const h = $('room'), box = h.parentElement.clientWidth;
+    const h = $('room'), cs = getComputedStyle(h.parentElement), box = h.parentElement.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     if (!box) return;                                   // страница скрыта — посчитаем, когда покажут
     const fits = () => h.scrollWidth <= box + 1;
     h.className = ''; h.style.fontSize = '';

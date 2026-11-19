@@ -4,28 +4,31 @@
   .site header a { color: var(--dim); font-size: 14px; text-decoration: none; }
   .site header a:hover { color: var(--milk); }
   .hero { position: relative; padding: 28px 0 8px; }
-  .hero canvas { position: absolute; z-index: 0; right: -70px; top: -20px; width: 300px; height: 300px; opacity: .9; pointer-events: none; }
+  .hero::before { content: ""; position: absolute; z-index: 0; left: 50%; top: 40px; width: 340px; height: 300px; border-radius: 50%;
+                  background: var(--glow); filter: blur(95px); opacity: .55; transform: translateX(-50%); pointer-events: none; }
+  .hero canvas { position: absolute; z-index: 0; left: -24px; top: 30px; width: calc(100% + 48px); height: 200px; opacity: .28; pointer-events: none; }
   .hero > *:not(canvas) { position: relative; z-index: 1; }
+  .join input { -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
   .hero h1 { white-space: normal; font-size: clamp(36px, 10vw, 58px); line-height: 1.02; margin: 0 0 16px; max-width: 13ch; }
   .lead { font-size: 18px; line-height: 1.5; color: var(--dim); margin: 0 0 28px; max-width: 34ch; }
   .join { display: flex; gap: 10px; }
-  .join input { flex: 1; min-width: 0; font: 600 17px/1.2 var(--body); color: var(--milk); background: var(--mint); border: 0;
+  .join input { flex: 1; min-width: 0; font: 600 17px/1.2 var(--body); color: var(--milk); background: var(--glass); border: 1px solid var(--edge);
                 border-radius: 99px; padding: 16px 20px; }
   .join input::placeholder { color: var(--dim); font-weight: 400; }
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; border: 0; cursor: pointer; text-decoration: none;
-         font: 700 17px/1 var(--body); padding: 16px 24px; border-radius: 99px; background: var(--lemon); color: var(--ink);
+         font: 700 16px/1 var(--tech); letter-spacing: .05em; text-transform: uppercase; padding: 17px 24px; border-radius: 99px; background: var(--lemon); color: var(--ink);
          transition: transform .08s; white-space: nowrap; }
   .btn:active { transform: scale(.96); }
   .btn:focus-visible, .join input:focus-visible { outline: 2px solid var(--milk); outline-offset: 3px; }
-  .btn.quiet { background: var(--mint); color: var(--milk); }
+  .btn.quiet { background: var(--glass); color: var(--milk); border: 1px solid var(--edge); }
   .note { font-size: 14px; color: var(--dim); margin: 10px 0 0; min-height: 20px; }
   .note.err { color: var(--gum); }
   section.own { margin-top: 56px; padding-top: 32px; border-top: 1px solid var(--mint); }
-  section.own h2 { font: 800 26px/1.15 var(--display); letter-spacing: -.03em; margin: 0 0 10px; }
+  section.own h2 { font: 700 28px/1.15 var(--tech); letter-spacing: 0; margin: 0 0 10px; }
   section.own p { color: var(--dim); line-height: 1.55; margin: 0 0 20px; max-width: 42ch; }
   ol.steps { list-style: none; counter-reset: s; padding: 0; margin: 26px 0 0; display: grid; gap: 14px; }
   ol.steps li { counter-increment: s; display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: baseline; line-height: 1.5; }
-  ol.steps li::before { content: counter(s); font: 800 15px/34px var(--display); width: 34px; height: 34px; border-radius: 50%;
+  ol.steps li::before { content: counter(s); font: 700 16px/32px var(--tech); border: 1px solid var(--edge); width: 34px; height: 34px; border-radius: 50%;
                         text-align: center; background: var(--mint); color: var(--lemon); }
   ol.steps b { color: var(--milk); font-weight: 600; }
   ol.steps span { color: var(--dim); }
@@ -38,5 +41,5 @@
   .lost p { color: var(--dim); font-size: 18px; line-height: 1.5; margin: 0 0 28px; max-width: 32ch; }
   @media (max-width: 420px) {
     .join { flex-direction: column; }
-    .hero canvas { width: 220px; height: 220px; right: -70px; top: -16px; opacity: .55; }
+    .hero canvas { height: 170px; }
   }

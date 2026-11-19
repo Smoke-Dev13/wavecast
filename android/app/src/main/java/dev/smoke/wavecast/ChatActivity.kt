@@ -62,7 +62,7 @@ class ChatActivity : Activity() {
     private fun bubble(m: CaptureService.ChatMsg): View {
         val b = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = shape(if (m.host) Ui.LILAC else Ui.PANEL, 18)
+            background = if (m.host) shape(Ui.LILAC, 18) else glass(18)
             setPadding(px(14), px(10), px(14), px(12))
         }
         val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
@@ -105,15 +105,15 @@ class ChatActivity : Activity() {
     private fun buildUi(): View {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Ui.BG)
+            background = Backdrop(this@ChatActivity).apply { glowY = 0f }
             setPadding(px(22), px(12), px(22), px(14))
         }
         val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         head.addView(label("←", 20f, Ui.MILK, Ui.bold).apply {
-            gravity = Gravity.CENTER; background = shape(Ui.PANEL, 99); contentDescription = "Назад"
+            gravity = Gravity.CENTER; background = glass(99); contentDescription = "Назад"
             setOnClickListener { finish() }; pressable(this)
         }, LinearLayout.LayoutParams(px(40), px(40)))
-        head.addView(label("Чат эфира", 24f, Ui.MILK, Ui.display).apply { letterSpacing = -0.03f; setPadding(px(12), 0, 0, 0) })
+        head.addView(label("Чат эфира", 24f, Ui.MILK, Ui.tech).apply { letterSpacing = 0.02f; setPadding(px(12), 0, 0, 0) })
         root.addView(head, wide(6))
 
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, px(8), 0, px(8)) }
