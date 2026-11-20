@@ -432,8 +432,10 @@
   }
 
   // цвет свечения из обложки: самый «живой» оттенок, приглушённый до спокойного
+  let tintSeq = 0;
   function tint(src) {
-    const set = c => document.documentElement.style.setProperty('--glow', c);
+    const my = ++tintSeq;                                      // цвет только от последней обложки
+    const set = c => { if (my === tintSeq) document.documentElement.style.setProperty('--glow', c); };
     if (!src) return set('#8C79E0');
     const img = new Image();
     img.onload = () => {
@@ -598,8 +600,8 @@
 
   function ui() {
     $('btn').className = wanted ? 'on' : '';
-    $('btn').setAttribute('aria-label', wanted ? 'Остановить' : 'Слушать');
-    $('hint').textContent = !wanted ? (blocked ? 'Жми, чтобы постучаться ещё раз' : asked ? 'Жми и слушай' : 'Жми, чтобы попроситься в эфир')
+    $('btn').setAttribute('aria-label', wanted ? (waiting ? 'Отменить запрос' : 'Остановить') : 'Слушать');
+    $('hint').textContent = !wanted ? (blocked ? 'Постучаться снова можно будет в следующем эфире. Если это ошибка — напиши ведущему.' : asked ? 'Жми и слушай' : 'Жми, чтобы попроситься в эфир')
       : waiting ? 'Ведущий увидит твоё имя и пустит в эфир. Страницу можно не закрывать.' : audio.srcObject && live ? 'Звук идёт' : 'Жду эфир — заиграет само';
     const mode = waiting && wanted ? 'knock' : blocked && !wanted ? 'nosig' : '';
     if (mode) document.body.dataset.mode = mode; else delete document.body.dataset.mode;

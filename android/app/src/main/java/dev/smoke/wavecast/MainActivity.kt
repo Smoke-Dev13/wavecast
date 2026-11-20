@@ -180,7 +180,7 @@ class MainActivity : Activity() {
         tvLive.setTextColor(if (on) Ui.MILK else Ui.DIM)
         tvLive.setCompoundDrawablesRelativeWithIntrinsicBounds(dot(if (on) Ui.CORAL else Ui.DIM), null, null, null)
 
-        tvRoom.text = s.room
+        if (tvRoom.text.toString() != s.room) { tvRoom.text = s.room; fitOneLine(tvRoom) }
         tvRoom.isClickable = !on
         tvHint.visibility = if (on) View.GONE else View.VISIBLE
 
@@ -296,9 +296,11 @@ class MainActivity : Activity() {
         root.addView(updCard, wide(16))
 
         root.addView(label("Частота", 13f, Ui.DIM), wide(26))
+        // название эфира всегда одной строкой: шрифт уменьшается, пока не влезет (слово не рвётся)
         tvRoom = label("", 28f, Ui.MILK, Ui.tech).apply {
-            maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, px(4), 0, px(4))
+            maxLines = 1; isSingleLine = true; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, px(4), 0, px(4))
             setOnClickListener { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
+            addOnLayoutChangeListener { v, l, _, r, _, ol, _, or_, _ -> if (r - l != or_ - ol) fitOneLine(v as TextView) }
         }
         root.addView(tvRoom, wide(2))
 
@@ -553,6 +555,19 @@ class MainActivity : Activity() {
             card.addView(row)
             reqBox.addView(card, wide(14))
         }
+    }
+
+    private fun fitOneLine(tv: TextView, maxSp: Float = 28f, minSp: Float = 12f) {
+        val avail = tv.width - tv.paddingLeft - tv.paddingRight
+        if (avail <= 0) return
+        val p = android.graphics.Paint(tv.paint)
+        var sp = maxSp
+        while (sp > minSp) {
+            p.textSize = sp * resources.displayMetrics.scaledDensity
+            if (p.measureText(tv.text.toString()) <= avail) break
+            sp -= 1f
+        }
+        tv.textSize = sp
     }
 
     private fun qr(text: String): Bitmap {

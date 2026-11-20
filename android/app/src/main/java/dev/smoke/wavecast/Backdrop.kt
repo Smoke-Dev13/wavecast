@@ -19,6 +19,8 @@ class Backdrop(ctx: Context) : Drawable() {
     private val grid = Paint().apply { color = 0x0FBFB0F5; strokeWidth = maxOf(1f, dp * 0.6f) }
     private val glow = Paint(Paint.ANTI_ALIAS_FLAG)
     private val fade = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var glowKey: Triple<Int, Int, Int>? = null
+    private var fadeKey: Triple<Int, Int, Int>? = null
     var glowY = -1f
         set(v) { if (field != v) { field = v; invalidateSelf() } }
     /** Цвет свечения: по умолчанию сиреневый, во время эфира — из обложки трека. */
@@ -32,11 +34,14 @@ class Backdrop(ctx: Context) : Drawable() {
         c.drawColor(Ui.BG)
         val cx = w / 2f; val cy = if (glowY >= 0) glowY else h * 0.4f
         // свечение: радиальный градиент вместо размытия, чтобы не нагружать отрисовку
-        val r = 230 * dp * (0.95f + lv * 0.2f)
-        val a = (0.62f + lv * 0.3f).coerceAtMost(1f)
+        val q = (lv * 40).toInt() / 40f                       // ступеньки громкости: глазу незаметно, градиент реже
+        val r = 230 * dp * (0.95f + q * 0.2f)
+        val a = (0.62f + q * 0.3f).coerceAtMost(1f)
         val core = (glowColor and 0xFFFFFF) or ((a * 255).toInt() shl 24)
         val mid = (glowColor and 0xFFFFFF) or ((a * 110).toInt() shl 24)
-        glow.shader = RadialGradient(cx, cy, r, intArrayOf(core, mid, 0), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP)
+        // градиенты пересоздаём только когда что-то поменялось, а не каждый кадр
+        val key = Triple(cx.toInt() * 31 + cy.toInt(), (r / dp).toInt(), core)
+        if (key != glowKey) { glowKey = key; glow.shader = RadialGradient(cx, cy, r, intArrayOf(core, mid, 0), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP) }
         c.drawCircle(cx, cy, r, glow)
         // сетка 26dp
         val step = 26 * dp
@@ -44,7 +49,8 @@ class Backdrop(ctx: Context) : Drawable() {
         var y = (cy % step); while (y < h) { c.drawLine(0f, y, w, y, grid); y += step }
         // к краям сетка растворяется в ночном фоне
         val fr = maxOf(w, h) * 0.62f
-        fade.shader = RadialGradient(cx, cy, fr, intArrayOf(0, 0, Ui.BG), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP)
+        val fk = Triple(cx.toInt(), cy.toInt(), fr.toInt())
+        if (fk != fadeKey) { fadeKey = fk; fade.shader = RadialGradient(cx, cy, fr, intArrayOf(0, 0, Ui.BG), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP) }
         c.drawRect(0f, 0f, w, h, fade)
     }
 

@@ -21,22 +21,23 @@ export default {
     // названия эфиров нечувствительны к регистру: /r/SmokeDev = /r/smokedev
     let m = url.pathname.match(new RegExp(`^/signal/(${ROOM})$`, "i"));
     if (m) return env.ROOMS.get(env.ROOMS.idFromName(m[1].toLowerCase())).fetch(req);
+    if (url.pathname === "/") {
+      const page = await env.ASSETS.fetch(new Request(new URL("/", url), req));
+      return new HTMLRewriter().on("head", {
+        element(h) { h.append(og(url, "WaveCast — радио с телефона для друзей", "Включаешь музыку на телефоне — друзья слышат её в своих наушниках, прямо в браузере", url.origin + "/"), { html: true }); },
+      }).transform(page);
+    }
     m = url.pathname.match(new RegExp(`^/r/(${ROOM})/?$`, "i"));
     if (m) {
       const room = m[1].toLowerCase();
       const page = await env.ASSETS.fetch(new Request(new URL("/listen", url), req));
       return new HTMLRewriter().on("head", {
         element(h) {
-          // превью ссылки в мессенджерах: название эфира в заголовке, картинка — общая
-          const img = `${url.origin}/og.jpg`;
+          // превью ссылки в мессенджерах: название эфира в заголовке, картинка — общая.
+          // «в эфире» не пишем: ссылку часто кидают заранее, когда эфир ещё не начался
           h.append(`<link rel="manifest" href="/m/${room}.webmanifest">` +
             `<link rel="apple-touch-icon" href="/icons/192.png"><meta name="mobile-web-app-capable" content="yes">` +
-            `<meta property="og:type" content="website"><meta property="og:site_name" content="WaveCast">` +
-            `<meta property="og:title" content="${room} — в эфире">` +
-            `<meta property="og:description" content="Нажми, чтобы слушать вместе — прямо в браузере, без приложения">` +
-            `<meta property="og:url" content="${url.origin}/r/${room}">` +
-            `<meta property="og:image" content="${img}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">` +
-            `<meta name="twitter:card" content="summary_large_image">`, { html: true });
+            og(url, `Эфир ${room} · WaveCast`, "Нажми, чтобы слушать вместе — прямо в браузере, без приложения", `${url.origin}/r/${room}`), { html: true });
         },
       }).transform(page);
     }
@@ -49,6 +50,15 @@ export default {
 };
 
 // Манифест «приложения» для конкретного эфира: установленная иконка открывает сразу его
+// og:-теги; room проверен регуляркой ROOM, остальное — наши константы
+function og(url, title, desc, link) {
+  return `<meta property="og:type" content="website"><meta property="og:site_name" content="WaveCast">` +
+    `<meta property="og:title" content="${title}"><meta property="og:description" content="${desc}">` +
+    `<meta property="og:url" content="${link}"><meta property="og:image" content="${url.origin}/og.jpg">` +
+    `<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">` +
+    `<meta name="twitter:card" content="summary_large_image">`;
+}
+
 function manifest(room) {
   const body = {
     name: `WaveCast · ${room}`, short_name: room.length > 12 ? "WaveCast" : room,

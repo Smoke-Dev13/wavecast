@@ -1,8 +1,8 @@
 {
-  "versionCode": 22,
-  "versionName": "0.12.0",
-  "url": "wavecast.apk?v=22",
-  "sha256": "07f59670bea4a5ea2b1e58085aa190237bbfc7d7b057ff6653e12444eea30667",
-  "size": 1271131,
-  "notes": "Свечение в цвет обложки и анимация включения эфира"
+  "versionCode": 23,
+  "versionName": "0.12.1",
+  "url": "wavecast.apk?v=23",
+  "sha256": "a3f8cd195c4e3ec7f1a2926e3c151b5daaaf43b595a74f145d2ca774fbf9a2f6",
+  "size": 1275227,
+  "notes": "Исправления: название эфира не ломается, свечение экономнее"
 }
