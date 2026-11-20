@@ -27,8 +27,16 @@ export default {
       const page = await env.ASSETS.fetch(new Request(new URL("/listen", url), req));
       return new HTMLRewriter().on("head", {
         element(h) {
+          // превью ссылки в мессенджерах: название эфира в заголовке, картинка — общая
+          const img = `${url.origin}/og.jpg`;
           h.append(`<link rel="manifest" href="/m/${room}.webmanifest">` +
-            `<link rel="apple-touch-icon" href="/icons/192.png"><meta name="mobile-web-app-capable" content="yes">`, { html: true });
+            `<link rel="apple-touch-icon" href="/icons/192.png"><meta name="mobile-web-app-capable" content="yes">` +
+            `<meta property="og:type" content="website"><meta property="og:site_name" content="WaveCast">` +
+            `<meta property="og:title" content="${room} — в эфире">` +
+            `<meta property="og:description" content="Нажми, чтобы слушать вместе — прямо в браузере, без приложения">` +
+            `<meta property="og:url" content="${url.origin}/r/${room}">` +
+            `<meta property="og:image" content="${img}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">` +
+            `<meta name="twitter:card" content="summary_large_image">`, { html: true });
         },
       }).transform(page);
     }

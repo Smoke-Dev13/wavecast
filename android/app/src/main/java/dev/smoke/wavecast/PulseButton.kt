@@ -19,7 +19,45 @@ import android.view.accessibility.AccessibilityNodeInfo
 class PulseButton(ctx: Context) : View(ctx) {
 
     var live = false
-        set(v) { field = v; contentDescription = if (v) "Закончить эфир" else "В эфир"; invalidate() }
+        set(v) {
+            val changed = field != v
+            field = v; contentDescription = if (v) "Закончить эфир" else "В эфир"
+            if (changed && isAttachedToWindow && isLaidOut) animateLive(v) else { reveal = if (v) 1f else 0f }
+            invalidate()
+        }
+
+    // включение эфира: луч разгоняется из центра к краям, вспышка, кольцо и короткая вибрация;
+    // выключение — волна сходится обратно в центр
+    private var reveal = 0f
+    private var flash = 0f
+    private var anim: android.animation.ValueAnimator? = null
+    private fun animateLive(on: Boolean) {
+        anim?.cancel()
+        if (android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f) {
+            reveal = if (on) 1f else 0f; flash = 0f; return
+        }
+        var buzzed = false
+        val from = reveal
+        anim = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = if (on) 900 else 420
+            interpolator = android.view.animation.LinearInterpolator()
+            addUpdateListener {
+                val t = it.animatedValue as Float
+                if (on) {
+                    val e = (t / 0.45f).coerceAtMost(1f)
+                    reveal = 1f - (1f - e) * (1f - e)                      // быстро стартует, мягко доходит до краёв
+                    flash = if (t < 0.45f) 0f else Math.min(1f, (t - 0.45f) / 0.07f) * Math.pow(((1f - t) / 0.55f).toDouble(), 1.4).toFloat()
+                    if (!buzzed && t >= 0.45f) {
+                        buzzed = true
+                        performHapticFeedback(if (android.os.Build.VERSION.SDK_INT >= 30) android.view.HapticFeedbackConstants.CONFIRM
+                                              else android.view.HapticFeedbackConstants.LONG_PRESS)
+                    }
+                } else { reveal = from * (1f - t) * (1f - t); flash = 0f }
+                invalidate()
+            }
+            start()
+        }
+    }
 
     /** Сглаженная громкость 0..1 — фон подсвечивается вместе с волной. */
     var onLevel: ((Float) -> Unit)? = null
@@ -55,27 +93,42 @@ class PulseButton(ctx: Context) : View(ctx) {
         val w = width.toFloat(); val cx = w / 2f; val cy = height / 2f
         val target = if (live) CaptureService.level else 0f
         smooth += (target - smooth) * 0.2f
-        onLevel?.invoke(smooth)
-        if (live) phase += 0.05f + smooth * 0.14f
+        onLevel?.invoke((smooth + flash * 0.7f).coerceAtMost(1f))
+        if (live || reveal > 0f) phase += 0.05f + smooth * 0.14f
 
-        // волна: к краям затихает, амплитуда растёт с громкостью
+        // волна: к краям затихает, амплитуда растёт с громкостью (и на миг — от вспышки)
         val amp = height * 0.34f
-        val base = if (live) 0.07f else 0.035f
-        wave.reset()
-        var x = 0f
-        val step = 3 * dp
-        while (x <= w) {
+        fun waveY(x: Float, base: Float, lv: Float): Float {
             val t = x / w
             val edge = Math.sin(Math.PI * t).toFloat()
-            val a = (base + smooth * 0.93f) * amp * edge
-            val y = cy + (Math.sin(t * 18.0 + phase) * Math.sin(t * 5.3 - phase * 0.4 + 1.0)).toFloat() * a
-            if (x == 0f) wave.moveTo(x, y) else wave.lineTo(x, y)
-            x += step
+            return cy + (Math.sin(t * 18.0 + phase) * Math.sin(t * 5.3 - phase * 0.4 + 1.0)).toFloat() * (base + lv * 0.93f) * amp * edge
         }
-        c.drawPath(wave, waveGlow)
-        c.drawPath(wave, waveLine)
+        val step = 3 * dp
+        if (reveal < 1f) {                                   // в покое — тусклая почти ровная линия
+            wave.reset(); var x = 0f
+            while (x <= w) { val y = waveY(x, 0.035f, 0f); if (x == 0f) wave.moveTo(x, y) else wave.lineTo(x, y); x += step }
+            waveLine.alpha = 110; c.drawPath(wave, waveLine); waveLine.alpha = 240
+        }
+        if (reveal > 0f) {
+            val lv = (smooth + flash * 0.35f).coerceAtMost(1f)
+            wave.reset(); var x = 0f
+            while (x <= w) { val y = waveY(x, 0.07f, lv); if (x == 0f) wave.moveTo(x, y) else wave.lineTo(x, y); x += step }
+            val half = reveal * w / 2f
+            c.save(); c.clipRect(cx - half, 0f, cx + half, height.toFloat())
+            c.drawPath(wave, waveGlow); c.drawPath(wave, waveLine)
+            c.restore()
+            if (reveal < 1f) {                               // яркие точки на концах бегущего луча
+                icon.color = Ui.MILK
+                c.drawCircle(cx - half, waveY(cx - half, 0.07f, lv), 3 * dp, icon)
+                c.drawCircle(cx + half, waveY(cx + half, 0.07f, lv), 3 * dp, icon)
+            }
+        }
 
         val r = radius * press
+        if (flash > 0.01f) {                                 // кольцо расходится от кнопки
+            ring.color = Ui.MILK; ring.alpha = (flash * 140).toInt()
+            c.drawCircle(cx, cy, r * (1.05f + (1f - flash) * 0.7f), ring)
+        }
         if (live) {
             fill.color = 0xE62A2442.toInt()
             c.drawCircle(cx, cy, r, fill)
@@ -103,7 +156,7 @@ class PulseButton(ctx: Context) : View(ctx) {
             c.drawPath(tri, icon)
             icon.style = Paint.Style.FILL
         }
-        if (live || smooth > 0.01f) postInvalidateOnAnimation()
+        if (live || smooth > 0.01f || anim?.isRunning == true) postInvalidateOnAnimation()
     }
 
     @SuppressLint("ClickableViewAccessibility")

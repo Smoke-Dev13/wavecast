@@ -1,8 +1,8 @@
 {
-  "versionCode": 21,
-  "versionName": "0.11.0",
-  "url": "wavecast.apk?v=21",
-  "sha256": "6afff7d41937eaafb205fb55efb4eb60a32ba45071e6c78c7217fd11b6c970f2",
-  "size": 1267035,
-  "notes": "Новый дизайн: свечение и волна осциллографа"
+  "versionCode": 22,
+  "versionName": "0.12.0",
+  "url": "wavecast.apk?v=22",
+  "sha256": "07f59670bea4a5ea2b1e58085aa190237bbfc7d7b057ff6653e12444eea30667",
+  "size": 1271131,
+  "notes": "Свечение в цвет обложки и анимация включения эфира"
 }

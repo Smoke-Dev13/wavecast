@@ -15,7 +15,9 @@
           --tech: "Jura", "Onest", system-ui, sans-serif; --night: #110E1C; --glow: #8C79E0; --lv: 0;
           --glass: rgba(42,38,64,.42); --edge: rgba(239,234,226,.14); }
   * { box-sizing: border-box; }
-  html { background: var(--night); }
+  /* цвет свечения плавно перетекает при смене обложки */
+  @property --glow { syntax: "<color>"; inherits: true; initial-value: #8C79E0; }
+  html { background: var(--night); transition: --glow 2.2s ease; }
   body { margin: 0; min-height: 100vh; min-height: 100dvh; color: var(--milk); font: 400 16px/1.45 var(--body);
          background: var(--night); display: flex; justify-content: center; position: relative; }
   /* сетка осциллографа: видна у свечения и растворяется к краям */
@@ -45,6 +47,14 @@
   h1.squeeze { white-space: normal; overflow-wrap: anywhere; }
   #state { margin: 0; min-height: 24px; color: var(--dim); }
   #state.err { color: var(--gum); }
+  /* «стучимся к ведущему» и «нет сигнала»: крупный тонкий заголовок, свечение пульсирует или гаснет */
+  body[data-mode] #state { font: 300 clamp(22px, 7vw, 28px)/1.15 var(--display); letter-spacing: -.02em; color: var(--milk); min-height: 0; }
+  body[data-mode] #hint { font: 500 15px/1.4 var(--body); max-width: 320px; margin-inline: auto; }
+  body[data-mode="knock"] .stage::before { animation: knock 1.6s ease-in-out infinite; }
+  @keyframes knock { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+  body[data-mode="nosig"] .stage::before { background: var(--gum); opacity: .28; transform: translate(-50%, -50%) scale(.5); animation: none; }
+  body[data-mode="nosig"]::before { opacity: .45; }
+  body[data-mode="nosig"] #room { color: #C9C3D9; }
   .stage { position: relative; width: 100%; height: 270px; margin: 10px auto 6px; display: grid; place-items: center; }
   /* свечение: дышит само и разгорается от громкости */
   .stage::before { content: ""; position: absolute; left: 50%; top: 50%; width: 320px; height: 320px; border-radius: 50%;
@@ -149,7 +159,7 @@
          transition: transform .08s; }
   .sticker:active { transform: scale(.96); }
   .meta { font-size: 13px; text-align: right; color: var(--dim); line-height: 1.5; }
-  @media (prefers-reduced-motion: reduce) { .pill.live i, .stage::before { animation: none; } #btn, .sticker { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .pill.live i, .stage::before, body[data-mode="knock"] .stage::before { animation: none; } #btn, .sticker { transition: none; } }
 </style>
 </head>
 <body>
@@ -218,15 +228,17 @@
   const join = () => send({ type: 'join', name: myName(), cid });
 
   // Волна осциллографа поперёк свечения: амплитуда идёт от спектра звука,
-  // громкость (--lv) раздувает свечение за кнопкой
+  // громкость (--lv) раздувает свечение за кнопкой.
+  // body[data-mode=knock] — пунктирная бегущая волна (стучимся к ведущему),
+  // body[data-mode=nosig] — погасшая линия с точкой (не пустили)
   function ring(cv, getData) {
     const g = cv.getContext('2d'), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const host = cv.parentElement, N = 96, lvl = new Float32Array(N);
-    let phase = 0, glow = 0;
+    let phase = 0, glow = 0, dash = 0;
     function frame() {
       const dpr = Math.min(devicePixelRatio || 1, 2), w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-      const data = getData(), mid = h / 2, amp = h * 0.36;
+      const mode = document.body.dataset.mode, data = mode ? null : getData(), mid = h / 2, amp = h * 0.36;
       let sum = 0;
       for (let i = 0; i < N; i++) {
         const m = Math.abs(i - N / 2) / (N / 2);                 // бас в центре, верха по краям
@@ -238,17 +250,31 @@
       host.style.setProperty('--lv', glow.toFixed(3));
       if (!still) phase += 0.05 + loud * 0.12;
       g.clearRect(0, 0, w, h);
-      const path = () => {
+      g.strokeStyle = '#EFEAE2'; g.lineJoin = 'round'; g.lineCap = 'round';
+      if (mode === 'nosig') {
+        const lg = g.createLinearGradient(0, 0, w, 0);
+        lg.addColorStop(0, 'rgba(239,234,226,0)'); lg.addColorStop(.5, 'rgba(239,234,226,.55)'); lg.addColorStop(1, 'rgba(239,234,226,0)');
+        g.strokeStyle = lg; g.lineWidth = 1.4 * dpr; g.beginPath(); g.moveTo(0, mid); g.lineTo(w, mid); g.stroke();
+        g.fillStyle = '#F0A08C'; g.beginPath(); g.arc(w / 2, mid, 3 * dpr, 0, Math.PI * 2); g.fill();
+        return requestAnimationFrame(frame);
+      }
+      const path = (a0) => {
         g.beginPath();
         for (let x = 0; x <= w; x += 3 * dpr) {
           const i = Math.min(N - 1, Math.floor(x / w * N));
           const edge = Math.sin(Math.PI * x / w);                  // к краям волна затихает
-          const a = (0.06 + lvl[i] * 0.94) * amp * edge;
+          const a = (a0 != null ? a0 : 0.06 + lvl[i] * 0.94) * amp * edge;
           const y = mid + Math.sin(x / w * 18 + phase) * a * Math.sin(x / w * 5.3 - phase * 0.4 + 1);
           x ? g.lineTo(x, y) : g.moveTo(x, y);
         }
       };
-      g.strokeStyle = '#EFEAE2'; g.lineJoin = 'round';
+      if (mode === 'knock') {
+        if (!still) dash -= 0.6 * dpr;
+        g.setLineDash([6 * dpr, 14 * dpr]); g.lineDashOffset = dash;
+        path(0.3); g.globalAlpha = 0.8; g.lineWidth = 1.6 * dpr; g.stroke();
+        g.setLineDash([]); g.globalAlpha = 1;
+        return requestAnimationFrame(frame);
+      }
       path(); g.globalAlpha = 0.3; g.lineWidth = 6 * dpr; g.shadowColor = '#EFEAE2'; g.shadowBlur = 12 * dpr; g.stroke();
       path(); g.globalAlpha = 0.95; g.lineWidth = 1.4 * dpr; g.shadowBlur = 0; g.stroke();
       g.globalAlpha = 1;
@@ -316,11 +342,11 @@
         if (!pc || pc.connectionState !== 'connected') {
           setLive(live);
           setState(!live ? 'Эфир ещё не начался. Страница сама подключится, когда ведущий выйдет.'
-                   : waiting ? 'Ждём, пока ведущий пустит…' : asked ? 'Ведущий в сети, соединяюсь…' : 'Эфир идёт. Представься и жми «Слушать»');
+                   : waiting ? 'Стучимся к ведущему…' : asked ? 'Ведущий в сети, соединяюсь…' : 'Эфир идёт. Представься и жми «Слушать»');
         }
         break;
       case 'offer': {
-        waiting = false; $('who').style.display = 'none';
+        waiting = false; $('who').style.display = 'none'; ui();
         drop();
         const p = pc = new RTCPeerConnection({ iceServers: ice });
         p.onicecandidate = e => { if (e.candidate) send({ type: 'ice', candidate: e.candidate }); };
@@ -349,11 +375,11 @@
         ui();
         break;
       case 'waiting':
-        waiting = true; setState('Ждём, пока ведущий пустит…'); ui();
+        waiting = true; setState('Стучимся к ведущему…'); ui();
         break;
       case 'denied':
         asked = false; waiting = false; wanted = false; blocked = true; drop(); silence(); Chat.reset();
-        setState('Ведущий не пустил в эфир', true); $('who').style.display = ''; ui();
+        setState('Ведущий не пустил'); $('who').style.display = ''; ui();
         break;
       case 'busy':
         asked = false; waiting = false; wanted = false;
@@ -361,7 +387,7 @@
         break;
       case 'kicked':
         asked = false; waiting = false; wanted = false; blocked = true; drop(); silence(); showTrack(null); Chat.reset();
-        setState('Ведущий отключил тебя от эфира', true); $('who').style.display = ''; ui();
+        setState('Ведущий отключил тебя'); $('who').style.display = ''; ui();
         break;
       case 'full':
         setState('Мест нет: у ведущего максимум слушателей. Попробуй позже.', true);
@@ -405,8 +431,36 @@
     if (d.type === 'react' && EMOJI.includes(d.e)) float(d.e, d.name);
   }
 
+  // цвет свечения из обложки: самый «живой» оттенок, приглушённый до спокойного
+  function tint(src) {
+    const set = c => document.documentElement.style.setProperty('--glow', c);
+    if (!src) return set('#8C79E0');
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const n = 16, cv = document.createElement('canvas'); cv.width = cv.height = n;
+        const g = cv.getContext('2d'); g.drawImage(img, 0, 0, n, n);
+        const d = g.getImageData(0, 0, n, n).data; let x = 0, y = 0, ws = 0, sw = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          const r = d[i] / 255, gg = d[i + 1] / 255, b = d[i + 2] / 255, mx = Math.max(r, gg, b), mn = Math.min(r, gg, b), l = (mx + mn) / 2, c = mx - mn;
+          if (c < .08) continue;
+          const s = c / (1 - Math.abs(2 * l - 1) || 1);
+          let h = mx === r ? ((gg - b) / c) % 6 : mx === gg ? (b - r) / c + 2 : (r - gg) / c + 4; h *= Math.PI / 3;
+          const w = s * (1 - Math.abs(l - .5) * 1.6);
+          if (w <= 0) continue;
+          x += Math.cos(h) * w; y += Math.sin(h) * w; ws += w; sw += s * w;
+        }
+        if (ws < 6) return set('#8C79E0');                                   // почти серая обложка
+        const hue = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360, sat = Math.min(68, Math.max(45, sw / ws * 85));
+        set(`hsl(${hue.toFixed(0)} ${sat.toFixed(0)}% 54%)`);
+      } catch { set('#8C79E0'); }
+    };
+    img.src = src;
+  }
+
   function showTrack(t) {
     $('now').style.display = t ? 'flex' : 'none';
+    tint(t && /^data:image\/(jpeg|png|webp);base64,/.test(t.cover || '') ? t.cover : null);
     if (!t) { document.title = room + ' — WaveCast'; if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: room, artist: 'WaveCast' }); return; }
     $('title').textContent = $('title').title = t.title;
     $('artist').textContent = $('artist').title = t.artist || '';
@@ -545,8 +599,10 @@
   function ui() {
     $('btn').className = wanted ? 'on' : '';
     $('btn').setAttribute('aria-label', wanted ? 'Остановить' : 'Слушать');
-    $('hint').textContent = !wanted ? (asked ? 'Жми и слушай' : 'Жми, чтобы попроситься в эфир')
-      : waiting ? 'Запрос отправлен' : audio.srcObject && live ? 'Звук идёт' : 'Жду эфир — заиграет само';
+    $('hint').textContent = !wanted ? (blocked ? 'Жми, чтобы постучаться ещё раз' : asked ? 'Жми и слушай' : 'Жми, чтобы попроситься в эфир')
+      : waiting ? 'Ведущий увидит твоё имя и пустит в эфир. Страницу можно не закрывать.' : audio.srcObject && live ? 'Звук идёт' : 'Жду эфир — заиграет само';
+    const mode = waiting && wanted ? 'knock' : blocked && !wanted ? 'nosig' : '';
+    if (mode) document.body.dataset.mode = mode; else delete document.body.dataset.mode;
     if (live && pc && pc.connectionState === 'connected') setState(wanted ? 'Ты в эфире' : 'Эфир идёт');
   }
 

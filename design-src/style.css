@@ -4,7 +4,9 @@
           --tech: "Jura", "Onest", system-ui, sans-serif; --night: #110E1C; --glow: #8C79E0; --lv: 0;
           --glass: rgba(42,38,64,.42); --edge: rgba(239,234,226,.14); }
   * { box-sizing: border-box; }
-  html { background: var(--night); }
+  /* цвет свечения плавно перетекает при смене обложки */
+  @property --glow { syntax: "<color>"; inherits: true; initial-value: #8C79E0; }
+  html { background: var(--night); transition: --glow 2.2s ease; }
   body { margin: 0; min-height: 100vh; min-height: 100dvh; color: var(--milk); font: 400 16px/1.45 var(--body);
          background: var(--night); display: flex; justify-content: center; position: relative; }
   /* сетка осциллографа: видна у свечения и растворяется к краям */
@@ -34,6 +36,14 @@
   h1.squeeze { white-space: normal; overflow-wrap: anywhere; }
   #state { margin: 0; min-height: 24px; color: var(--dim); }
   #state.err { color: var(--gum); }
+  /* «стучимся к ведущему» и «нет сигнала»: крупный тонкий заголовок, свечение пульсирует или гаснет */
+  body[data-mode] #state { font: 300 clamp(22px, 7vw, 28px)/1.15 var(--display); letter-spacing: -.02em; color: var(--milk); min-height: 0; }
+  body[data-mode] #hint { font: 500 15px/1.4 var(--body); max-width: 320px; margin-inline: auto; }
+  body[data-mode="knock"] .stage::before { animation: knock 1.6s ease-in-out infinite; }
+  @keyframes knock { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+  body[data-mode="nosig"] .stage::before { background: var(--gum); opacity: .28; transform: translate(-50%, -50%) scale(.5); animation: none; }
+  body[data-mode="nosig"]::before { opacity: .45; }
+  body[data-mode="nosig"] #room { color: #C9C3D9; }
   .stage { position: relative; width: 100%; height: 270px; margin: 10px auto 6px; display: grid; place-items: center; }
   /* свечение: дышит само и разгорается от громкости */
   .stage::before { content: ""; position: absolute; left: 50%; top: 50%; width: 320px; height: 320px; border-radius: 50%;
@@ -138,4 +148,4 @@
          transition: transform .08s; }
   .sticker:active { transform: scale(.96); }
   .meta { font-size: 13px; text-align: right; color: var(--dim); line-height: 1.5; }
-  @media (prefers-reduced-motion: reduce) { .pill.live i, .stage::before { animation: none; } #btn, .sticker { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .pill.live i, .stage::before, body[data-mode="knock"] .stage::before { animation: none; } #btn, .sticker { transition: none; } }

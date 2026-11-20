@@ -43,6 +43,8 @@ class MainActivity : Activity() {
     private lateinit var btnBox: android.widget.FrameLayout
     private lateinit var scroll: ScrollView
     private val backdrop by lazy { Backdrop(this) }
+    private var tintFor: Bitmap? = null
+    private var tintAnim: android.animation.ValueAnimator? = null
     private lateinit var reqBox: LinearLayout
     private lateinit var peopleCard: LinearLayout
     private lateinit var btnChat: Button
@@ -188,6 +190,16 @@ class MainActivity : Activity() {
         tvArtist.visibility = if (st.nowArtist.isNullOrBlank()) View.GONE else View.VISIBLE
         ivNow.visibility = if (st.nowCover != null) View.VISIBLE else View.GONE
         if (st.nowCover != null) ivNow.setImageBitmap(st.nowCover)
+        // свечение перетекает в цвет обложки (без эфира — обычный сиреневый)
+        val art = if (on) st.nowCover else null
+        if (art !== tintFor) {
+            tintFor = art
+            val to = Backdrop.glowFrom(art)
+            tintAnim?.cancel()
+            tintAnim = android.animation.ValueAnimator.ofArgb(backdrop.glowColor, to).apply {
+                duration = 2200; addUpdateListener { backdrop.glowColor = it.animatedValue as Int }; start()
+            }
+        }
         npCard.visibility = if (!on && s.showNowPlaying && !NowPlaying.allowed(this)) View.VISIBLE else View.GONE
         if (s.nowPlayingAsked) {
             // уже отправляли в настройки, а доступа нет — скорее всего, «Настройки с ограниченным доступом»

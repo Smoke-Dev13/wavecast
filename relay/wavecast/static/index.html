@@ -15,7 +15,9 @@
           --tech: "Jura", "Onest", system-ui, sans-serif; --night: #110E1C; --glow: #8C79E0; --lv: 0;
           --glass: rgba(42,38,64,.42); --edge: rgba(239,234,226,.14); }
   * { box-sizing: border-box; }
-  html { background: var(--night); }
+  /* цвет свечения плавно перетекает при смене обложки */
+  @property --glow { syntax: "<color>"; inherits: true; initial-value: #8C79E0; }
+  html { background: var(--night); transition: --glow 2.2s ease; }
   body { margin: 0; min-height: 100vh; min-height: 100dvh; color: var(--milk); font: 400 16px/1.45 var(--body);
          background: var(--night); display: flex; justify-content: center; position: relative; }
   /* сетка осциллографа: видна у свечения и растворяется к краям */
@@ -45,6 +47,14 @@
   h1.squeeze { white-space: normal; overflow-wrap: anywhere; }
   #state { margin: 0; min-height: 24px; color: var(--dim); }
   #state.err { color: var(--gum); }
+  /* «стучимся к ведущему» и «нет сигнала»: крупный тонкий заголовок, свечение пульсирует или гаснет */
+  body[data-mode] #state { font: 300 clamp(22px, 7vw, 28px)/1.15 var(--display); letter-spacing: -.02em; color: var(--milk); min-height: 0; }
+  body[data-mode] #hint { font: 500 15px/1.4 var(--body); max-width: 320px; margin-inline: auto; }
+  body[data-mode="knock"] .stage::before { animation: knock 1.6s ease-in-out infinite; }
+  @keyframes knock { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+  body[data-mode="nosig"] .stage::before { background: var(--gum); opacity: .28; transform: translate(-50%, -50%) scale(.5); animation: none; }
+  body[data-mode="nosig"]::before { opacity: .45; }
+  body[data-mode="nosig"] #room { color: #C9C3D9; }
   .stage { position: relative; width: 100%; height: 270px; margin: 10px auto 6px; display: grid; place-items: center; }
   /* свечение: дышит само и разгорается от громкости */
   .stage::before { content: ""; position: absolute; left: 50%; top: 50%; width: 320px; height: 320px; border-radius: 50%;
@@ -149,7 +159,7 @@
          transition: transform .08s; }
   .sticker:active { transform: scale(.96); }
   .meta { font-size: 13px; text-align: right; color: var(--dim); line-height: 1.5; }
-  @media (prefers-reduced-motion: reduce) { .pill.live i, .stage::before { animation: none; } #btn, .sticker { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .pill.live i, .stage::before, body[data-mode="knock"] .stage::before { animation: none; } #btn, .sticker { transition: none; } }
 </style>
 </head>
 <body>
@@ -248,15 +258,17 @@
   const join = () => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'join', name: $('name').value.trim().slice(0, 24) || 'Гость', cid })); };
 
   // Волна осциллографа поперёк свечения: амплитуда идёт от спектра звука,
-  // громкость (--lv) раздувает свечение за кнопкой
+  // громкость (--lv) раздувает свечение за кнопкой.
+  // body[data-mode=knock] — пунктирная бегущая волна (стучимся к ведущему),
+  // body[data-mode=nosig] — погасшая линия с точкой (не пустили)
   function ring(cv, getData) {
     const g = cv.getContext('2d'), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const host = cv.parentElement, N = 96, lvl = new Float32Array(N);
-    let phase = 0, glow = 0;
+    let phase = 0, glow = 0, dash = 0;
     function frame() {
       const dpr = Math.min(devicePixelRatio || 1, 2), w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-      const data = getData(), mid = h / 2, amp = h * 0.36;
+      const mode = document.body.dataset.mode, data = mode ? null : getData(), mid = h / 2, amp = h * 0.36;
       let sum = 0;
       for (let i = 0; i < N; i++) {
         const m = Math.abs(i - N / 2) / (N / 2);                 // бас в центре, верха по краям
@@ -268,17 +280,31 @@
       host.style.setProperty('--lv', glow.toFixed(3));
       if (!still) phase += 0.05 + loud * 0.12;
       g.clearRect(0, 0, w, h);
-      const path = () => {
+      g.strokeStyle = '#EFEAE2'; g.lineJoin = 'round'; g.lineCap = 'round';
+      if (mode === 'nosig') {
+        const lg = g.createLinearGradient(0, 0, w, 0);
+        lg.addColorStop(0, 'rgba(239,234,226,0)'); lg.addColorStop(.5, 'rgba(239,234,226,.55)'); lg.addColorStop(1, 'rgba(239,234,226,0)');
+        g.strokeStyle = lg; g.lineWidth = 1.4 * dpr; g.beginPath(); g.moveTo(0, mid); g.lineTo(w, mid); g.stroke();
+        g.fillStyle = '#F0A08C'; g.beginPath(); g.arc(w / 2, mid, 3 * dpr, 0, Math.PI * 2); g.fill();
+        return requestAnimationFrame(frame);
+      }
+      const path = (a0) => {
         g.beginPath();
         for (let x = 0; x <= w; x += 3 * dpr) {
           const i = Math.min(N - 1, Math.floor(x / w * N));
           const edge = Math.sin(Math.PI * x / w);                  // к краям волна затихает
-          const a = (0.06 + lvl[i] * 0.94) * amp * edge;
+          const a = (a0 != null ? a0 : 0.06 + lvl[i] * 0.94) * amp * edge;
           const y = mid + Math.sin(x / w * 18 + phase) * a * Math.sin(x / w * 5.3 - phase * 0.4 + 1);
           x ? g.lineTo(x, y) : g.moveTo(x, y);
         }
       };
-      g.strokeStyle = '#EFEAE2'; g.lineJoin = 'round';
+      if (mode === 'knock') {
+        if (!still) dash -= 0.6 * dpr;
+        g.setLineDash([6 * dpr, 14 * dpr]); g.lineDashOffset = dash;
+        path(0.3); g.globalAlpha = 0.8; g.lineWidth = 1.6 * dpr; g.stroke();
+        g.setLineDash([]); g.globalAlpha = 1;
+        return requestAnimationFrame(frame);
+      }
       path(); g.globalAlpha = 0.3; g.lineWidth = 6 * dpr; g.shadowColor = '#EFEAE2'; g.shadowBlur = 12 * dpr; g.stroke();
       path(); g.globalAlpha = 0.95; g.lineWidth = 1.4 * dpr; g.shadowBlur = 0; g.stroke();
       g.globalAlpha = 1;
