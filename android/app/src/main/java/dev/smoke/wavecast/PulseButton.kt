@@ -64,6 +64,9 @@ class PulseButton(ctx: Context) : View(ctx) {
     var onLevel: ((Float) -> Unit)? = null
     /** Сильная доля: громкость резко выше средней — фон вспыхивает. */
     var onBeat: (() -> Unit)? = null
+    /** Тема по жанру: когда вспыхивать и какой толщины волна. */
+    var look = Themes.DEFAULT
+        set(v) { field = v; waveGlow.strokeWidth = 6 * dp * v.fat; waveLine.strokeWidth = 1.8f * dp * v.fat; waveShadow.strokeWidth = 8 * dp * v.fat }
     private var avgLv = 0f
     private var lastBeat = 0L
 
@@ -116,7 +119,7 @@ class PulseButton(ctx: Context) : View(ctx) {
         onLevel?.invoke((smooth + flash * 0.7f).coerceAtMost(1f))
         avgLv += (smooth - avgLv) * 0.05f
         val now = android.os.SystemClock.uptimeMillis()
-        if (live && smooth - avgLv > 0.05f && smooth > 0.08f && now - lastBeat > 160) { lastBeat = now; onBeat?.invoke() }
+        if (live && look.beat > 0f && smooth - avgLv > look.thr && smooth > 0.08f && now - lastBeat > look.gap) { lastBeat = now; onBeat?.invoke() }
         if (live || reveal > 0f) phase += 0.07f + smooth * 0.2f
 
         // волна: к краям затихает, амплитуда растёт с громкостью (и на миг — от вспышки)

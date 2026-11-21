@@ -215,7 +215,7 @@
   };
   // приложение сообщает, что играет: {"title","artist","cover"(data:)} или null
   window.wcTrack = t => {
-    nowPlaying = t && t.title ? { title: t.title, artist: t.artist || '', cover: t.cover || '' } : null;
+    nowPlaying = t && t.title ? { title: t.title, artist: t.artist || '', cover: t.cover || '', genre: t.genre || '', theme: t.theme || '' } : null;
     toAll({ type: 'track', ...(nowPlaying || { title: null }) });
   };
   // чат: приложение рассылает готовое сообщение и обновляет историю для новичков

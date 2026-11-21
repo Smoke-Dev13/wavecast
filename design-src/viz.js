@@ -32,7 +32,9 @@
       // вспышка на сильной доле: громкость резко выше средней
       avg += (loud - avg) * 0.05;
       const now = performance.now();
-      if (!still && data && loud - avg > 0.05 && loud > 0.08 && now - lastBeat > 160) {
+      const th = document.body.dataset.theme;
+      const gap = th === 'club' ? 120 : th === 'night' || th === 'warm' ? 320 : th === 'street' ? 260 : 160;
+      if (!still && data && th !== 'calm' && loud - avg > (th === 'club' ? 0.04 : 0.05) && loud > 0.08 && now - lastBeat > gap) {
         lastBeat = now; document.body.classList.add('beat'); setTimeout(() => document.body.classList.remove('beat'), 110);
       }
       g.clearRect(0, 0, w, h);
@@ -63,8 +65,9 @@
       }
       // неоновая трубка: малиновая «тень» со сдвигом, ореол второго неона, белая сердцевина
       g.save(); g.translate(0, 4 * dpr); path(); g.strokeStyle = neonA; g.globalAlpha = 0.55; g.lineWidth = 8 * dpr; g.shadowColor = neonA; g.shadowBlur = 18 * dpr; g.stroke(); g.restore();
-      path(); g.strokeStyle = neonB; g.globalAlpha = 0.85; g.lineWidth = 6 * dpr; g.shadowColor = neonB; g.shadowBlur = 16 * dpr; g.stroke();
-      path(); g.strokeStyle = '#EFFBFF'; g.globalAlpha = 1; g.lineWidth = 1.8 * dpr; g.shadowBlur = 6 * dpr; g.stroke(); g.shadowBlur = 0;
+      const fat = document.body.dataset.theme === 'street' ? 1.8 : document.body.dataset.theme === 'calm' ? 0.7 : 1;
+      path(); g.strokeStyle = neonB; g.globalAlpha = 0.85; g.lineWidth = 6 * fat * dpr; g.shadowColor = neonB; g.shadowBlur = 16 * dpr; g.stroke();
+      path(); g.strokeStyle = '#EFFBFF'; g.globalAlpha = 1; g.lineWidth = 1.8 * fat * dpr; g.shadowBlur = 6 * dpr; g.stroke(); g.shadowBlur = 0;
       g.globalAlpha = 1;
       requestAnimationFrame(frame);
     }

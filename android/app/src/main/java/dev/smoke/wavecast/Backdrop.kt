@@ -41,6 +41,12 @@ class Backdrop(ctx: Context) : Drawable() {
         set(v) { field = v; invalidateSelf() }
     /** Вспышка на сильной доле 0..1 — пятна разом ярче. */
     var beat = 0f
+    /** Тема по жанру: ритм мигания, сила вспышек, стробоскоп, цветной слой. */
+    var look = Themes.DEFAULT
+        set(v) { field = v; overlayShader = null; invalidateSelf() }
+    private var overlayShader: RadialGradient? = null
+    private val overlayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.ADD) }
+    private val strobe = Paint().apply { color = 0xFFFFFFFF.toInt() }
     private val blob = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.ADD) }
     private val blobShaders = arrayOfNulls<RadialGradient>(4)
     private val blobKeys = IntArray(4) { -1 }
@@ -106,12 +112,23 @@ class Backdrop(ctx: Context) : Drawable() {
             }
             val bx = w * (0.5f + 0.62f * Math.sin((time * fx[k] * 6.283f + ph[k]).toDouble()).toFloat())
             val by = h * (0.5f + 0.6f * Math.sin((time * fy[k] * 6.283f + ph[k] * 1.7f).toDouble()).toFloat())
-            val blink = 0.5f + 0.5f * Math.sin((time / blinkT[k] * 6.283f + ph[k]).toDouble()).toFloat()
-            val al = ((0.14f + 0.6f * blink) * (0.75f + lv * 0.9f) * (1f + beat * 1.4f)).coerceAtMost(1f)
+            val blink = 0.5f + 0.5f * Math.sin((time / (blinkT[k] * look.bk) * 6.283f + ph[k]).toDouble()).toFloat()
+            val al = ((0.14f + 0.6f * blink) * (0.75f + lv * 0.9f) * (1f + beat * 1.4f * look.beat)).coerceAtMost(1f)
             m.setTranslate(bx, by); blobShaders[k]!!.setLocalMatrix(m)
             blob.shader = blobShaders[k]; blob.alpha = (al * 255).toInt()
             c.drawCircle(bx, by, br, blob)
         }
+        // огонь снизу (рок) или тёплый свет сверху (фолк)
+        if (look.overlay != 0) {
+            if (overlayShader == null) {
+                val ox = if (look.overlayTop) w * 0.3f else w * 0.5f; val oy = if (look.overlayTop) h * 0.2f else h * 1.05f
+                val rgb = look.overlay and 0xFFFFFF
+                overlayShader = RadialGradient(ox, oy, maxOf(w, h) * 0.6f, intArrayOf(rgb or 0xD0000000.toInt(), rgb or 0x55000000, 0), floatArrayOf(0f, 0.4f, 1f), Shader.TileMode.CLAMP)
+            }
+            overlayPaint.shader = overlayShader; c.drawRect(0f, 0f, w, h, overlayPaint)
+        }
+        // стробоскоп на ударе (клуб)
+        if (look.strobe && beat > 0.3f) { strobe.alpha = (beat * 42).toInt(); c.drawRect(0f, 0f, w, h, strobe) }
         // сканлайны, как на старом экране
         val sStep = 3 * dp
         var sy = 0f; while (sy < h) { c.drawLine(0f, sy, w, sy, scan); sy += sStep }

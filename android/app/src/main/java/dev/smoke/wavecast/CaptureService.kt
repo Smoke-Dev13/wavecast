@@ -46,6 +46,8 @@ class CaptureService : Service() {
         val nowTitle: String? = null,                // что играет (видят пущенные слушатели)
         val nowArtist: String? = null,
         val nowCover: android.graphics.Bitmap? = null,
+        val nowTheme: String? = null,                // тема по жанру: club, street, rock, pop, night, calm, warm
+        val nowGenre: String? = null,                // метка жанра для людей
         val chatUnread: Int = 0,                     // новых сообщений в чате, пока экран чата не открыт
         val autoAllow: Boolean = false,
         val error: String? = null,
@@ -219,7 +221,9 @@ class CaptureService : Service() {
         // «Сейчас играет»: только если ведущий включил и дал доступ к уведомлениям
         if (intent.getBooleanExtra(EXTRA_NOW_PLAYING, true)) {
             nowPlaying = NowPlaying(this) { title, artist, json, art ->
-                publish(status.copy(nowTitle = title, nowArtist = artist, nowCover = art))
+                val meta = json?.let { runCatching { org.json.JSONObject(it) }.getOrNull() }
+                publish(status.copy(nowTitle = title, nowArtist = artist, nowCover = art,
+                    nowTheme = meta?.optString("theme")?.ifBlank { null }, nowGenre = meta?.optString("genre")?.ifBlank { null }))
                 p2p?.track(json)
                 local?.track(json?.let { org.json.JSONObject(it).put("type", "track").toString() })
             }.also { it.start() }

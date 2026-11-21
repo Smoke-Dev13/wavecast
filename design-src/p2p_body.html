@@ -1,7 +1,7 @@
 </style>
 </head>
 <body>
-<div class="aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div class="tint" aria-hidden="true"></div>
 <main>
   <header>
     <span class="brand">WaveCast</span>
@@ -22,7 +22,7 @@
     <label for="name">Как тебя зовут? Ведущий увидит имя в запросе</label>
     <input id="name" maxlength="24" autocomplete="nickname" placeholder="Например, Аня">
   </div>
-  <div class="now br" id="now"><img id="cover" alt=""><div><div class="t" id="title"></div><div class="a" id="artist"></div></div></div>
+  <div class="now br" id="now"><img id="cover" alt=""><div><div class="t" id="title"></div><div class="a" id="artist"></div><div class="genre" id="genre" hidden></div></div></div>
   <div class="ctl">
     <label class="vol">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 4V5L7 9H3zm12.5 3a4 4 0 0 0-2-3.46v6.92a4 4 0 0 0 2-3.46z"/></svg>
@@ -262,8 +262,17 @@ RING_JS
     img.src = src;
   }
 
+  // тема по жанру (присылает ведущий): меняет характер движения, вспышек и волны
+  const THEMES = ['club', 'street', 'rock', 'pop', 'night', 'calm', 'warm'];
+  function theme(t) {
+    const id = t && THEMES.includes(t.theme) ? t.theme : '';
+    if (id) document.body.dataset.theme = id; else delete document.body.dataset.theme;
+    const g = $('genre'); g.hidden = !id; g.textContent = id ? String(t.genre || '').slice(0, 24) : '';
+  }
+
   function showTrack(t) {
     $('now').style.display = t ? 'flex' : 'none';
+    theme(t);
     tint(t && /^data:image\/(jpeg|png|webp);base64,/.test(t.cover || '') ? t.cover : null);
     if (!t) { document.title = room + ' — WaveCast'; if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: room, artist: 'WaveCast' }); return; }
     $('title').textContent = $('title').title = t.title;

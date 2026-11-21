@@ -23,7 +23,7 @@ class NowPlayingListener : NotificationListenerService()
 
 /**
  * Следит за плеерами (Spotify, YouTube, ВК, Яндекс Музыка…) и сообщает, что играет:
- * {"title","artist","cover":"data:image/jpeg;base64,…"} или null. Мессенджеры и сам WaveCast пропускаем.
+ * {"title","artist","cover":"data:image/jpeg;base64,…","genre":"РОК","theme":"rock"} или null. Мессенджеры и сам WaveCast пропускаем.
  */
 class NowPlaying(private val ctx: Context, private val onChange: (title: String?, artist: String?, json: String?, art: Bitmap?) -> Unit) {
 
@@ -91,7 +91,17 @@ class NowPlaying(private val ctx: Context, private val onChange: (title: String?
         val o = JSONObject().put("title", title).put("artist", artist ?: "")
         val small = scaled(art)
         cover(small)?.let { o.put("cover", it) }
+        // жанр → тема оформления: из плеера, иначе из каталога iTunes; пришёл позже — шлём трек ещё раз
+        val own = md.getString(MediaMetadata.METADATA_KEY_GENRE)?.trim()
+        fun withGenre(g: String): Boolean {
+            val t = Genre.themeOf(g) ?: return false
+            o.put("genre", t.label).put("theme", t.id); return true
+        }
+        if (own != null && withGenre(own)) { publish(title, artist, o.toString(), small); return@Runnable }
         publish(title, artist, o.toString(), small)
+        Genre.lookup(artist, title) { g ->
+            main.post { if (started && key == lastKey && withGenre(g)) onChange(title, artist, o.toString(), small) }
+        }
     }
 
     private fun publish(title: String?, artist: String?, json: String?, art: Bitmap?) {

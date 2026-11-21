@@ -93,15 +93,19 @@ class MainActivity : Activity() {
         CaptureService.reactionListener = { name, e -> floatReaction(name, e) }
         render(CaptureService.status)
         periodicCheck.run()                        // при каждом возврате и потом раз в 5 минут, пока экран открыт
-        motion.start()
+        lastTotal = 0L; motion.start()
     }
 
     // живой неон: пока экран открыт, пятна фона плывут, волна и кольцо переливаются по палитре обложки
+    private var animTime = 0f
+    private var lastTotal = 0L
     private val motion = android.animation.TimeAnimator().apply {
         setTimeListener { _, total, _ ->
             if (android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f) return@setTimeListener
             backdrop.beat = (backdrop.beat - 0.07f).coerceAtLeast(0f)
-            backdrop.time = total / 1000f
+            animTime += (total - lastTotal) / 1000f / backdrop.look.mv      // темп — по жанру
+            lastTotal = total
+            backdrop.time = animTime
             btn.neonA = backdrop.colorAt(0f); btn.neonB = backdrop.colorAt(1.5f)
         }
     }
@@ -201,8 +205,14 @@ class MainActivity : Activity() {
 
         nowRow.visibility = if (on && st.nowTitle != null) View.VISIBLE else View.GONE
         tvNow.text = st.nowTitle ?: ""
-        tvArtist.text = st.nowArtist ?: ""
-        tvArtist.visibility = if (st.nowArtist.isNullOrBlank()) View.GONE else View.VISIBLE
+        // метка жанра рядом с исполнителем
+        val genre = if (on) st.nowGenre else null
+        tvArtist.text = if (genre == null) st.nowArtist ?: "" else android.text.SpannableStringBuilder(st.nowArtist ?: "")
+            .apply { if (isNotEmpty()) append("   ") }
+            .append(genre, android.text.style.ForegroundColorSpan(Ui.VOLT), 0)
+        val look = Themes.of(if (on) st.nowTheme else null)
+        if (look != backdrop.look) { backdrop.look = look; btn.look = look }
+        tvArtist.visibility = if (st.nowArtist.isNullOrBlank() && genre == null) View.GONE else View.VISIBLE
         ivNow.visibility = if (st.nowCover != null) View.VISIBLE else View.GONE
         if (st.nowCover != null) ivNow.setImageBitmap(st.nowCover)
         // свечение перетекает в цвет обложки (без эфира — обычный сиреневый)
@@ -373,7 +383,7 @@ class MainActivity : Activity() {
         // сцена: круглая кнопка по центру свободного места
         // сцена: волна поперёк экрана, кнопка эфира на ней, сверху — слой для летящих реакций
         val stage = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; clipChildren = false }
-        btn = PulseButton(this).apply { onLevel = { backdrop.lv = it }; onBeat = { backdrop.beat = 1f } }
+        btn = PulseButton(this).apply { onLevel = { backdrop.lv = it }; onBeat = { backdrop.beat = 1f; if (backdrop.look.shake) shake() } }
         btnBox = android.widget.FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
         val full = android.widget.FrameLayout.LayoutParams.MATCH_PARENT
         btnBox.addView(btn, android.widget.FrameLayout.LayoutParams(full, full))
@@ -588,6 +598,16 @@ class MainActivity : Activity() {
             card.addView(row)
             reqBox.addView(card, wide(14))
         }
+    }
+
+    /** Рок: экран вздрагивает на ударе. */
+    private fun shake() {
+        val v = scroll.getChildAt(0) ?: return
+        if (v.animation != null) return
+        val d = px(4).toFloat()
+        v.animate().cancel()
+        v.translationX = (if (Math.random() < 0.5) -d else d); v.translationY = d / 2
+        v.animate().translationX(0f).translationY(0f).setDuration(160).setInterpolator(android.view.animation.OvershootInterpolator(3f)).start()
     }
 
     private fun fitOneLine(tv: TextView, maxSp: Float = 28f, minSp: Float = 12f) {

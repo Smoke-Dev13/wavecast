@@ -1,8 +1,8 @@
 {
-  "versionCode": 27,
-  "versionName": "0.15.1",
-  "url": "wavecast.apk?v=27",
-  "sha256": "f3880df426c884ca5822932aba0651f69b120b015a68885630c616e1e74ed512",
-  "size": 1279323,
-  "notes": "Динамичнее: быстрее, ярче, вспышки в такт"
+  "versionCode": 28,
+  "versionName": "0.16.0",
+  "url": "wavecast.apk?v=28",
+  "sha256": "e6e9462d63cdc4c6da817a3e2cd8518467d58118d4c4b56d3e6858c96b1e9351",
+  "size": 1291611,
+  "notes": "Темы по жанру трека"
 }
