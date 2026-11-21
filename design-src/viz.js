@@ -5,7 +5,14 @@
   function ring(cv, getData) {
     const g = cv.getContext('2d'), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const host = cv.parentElement, N = 96, lvl = new Float32Array(N);
-    let phase = 0, glow = 0, dash = 0, tick = 0, neonB = '#00E5FF', neonA = '#FF2BD6';
+    let phase = 0, glow = 0, dash = 0, tick = 0, neonB = '#00E5FF', neonA = '#FF2BD6', avg = 0, lastBeat = 0;
+    const t0 = performance.now();
+    // цвет волны плавно переливается по палитре обложки (window.__pal — оттенки в градусах)
+    const hueAt = (k) => {
+      const pal = window.__pal || [318, 186, 268, 222], n = pal.length, x = ((performance.now() - t0) / 3500 + k) % n;
+      const i = Math.floor(x), f = x - i, a = pal[i], b = pal[(i + 1) % n];
+      let d = ((b - a + 540) % 360) - 180; return (a + d * (f * f * (3 - 2 * f)) + 360) % 360;
+    };
     function frame() {
       const dpr = Math.min(devicePixelRatio || 1, 2), w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
@@ -20,9 +27,12 @@
       glow += (loud - glow) * 0.1;
       host.style.setProperty('--lv', glow.toFixed(3));
       if (!still) phase += 0.05 + loud * 0.12;
-      if (tick++ % 20 === 0) {                                   // оба неона — из обложки (через CSS-переменные)
-        const cs = getComputedStyle(document.documentElement);
-        neonB = cs.getPropertyValue('--glow').trim() || neonB; neonA = cs.getPropertyValue('--neon').trim() || neonA;
+      if (!still) { neonA = `hsl(${hueAt(0).toFixed(1)} 100% 55%)`; neonB = `hsl(${hueAt(1.5).toFixed(1)} 100% 55%)`; }
+      // вспышка на сильной доле: громкость резко выше средней
+      avg += (loud - avg) * 0.05;
+      const now = performance.now();
+      if (!still && data && loud - avg > 0.07 && loud > 0.12 && now - lastBeat > 220) {
+        lastBeat = now; document.body.classList.add('beat'); setTimeout(() => document.body.classList.remove('beat'), 110);
       }
       g.clearRect(0, 0, w, h);
       g.strokeStyle = '#EFEAE2'; g.lineJoin = 'round'; g.lineCap = 'round';

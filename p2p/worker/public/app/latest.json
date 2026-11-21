@@ -1,8 +1,8 @@
 {
-  "versionCode": 25,
-  "versionName": "0.14.0",
-  "url": "wavecast.apk?v=25",
-  "sha256": "6d8d447f43bbe3426eb76a57aa9e625284219b767e76372d95641ce914227a25",
+  "versionCode": 26,
+  "versionName": "0.15.0",
+  "url": "wavecast.apk?v=26",
+  "sha256": "f6aa2c9688efedc5d8386f107e2d0470ce0ac4bf066ec420cb331964331b4eef",
   "size": 1279323,
-  "notes": "Неон в цвет обложки"
+  "notes": "Живой неон: цвета обложки плывут и мигают в такт"
 }

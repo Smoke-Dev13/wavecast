@@ -62,6 +62,10 @@ class PulseButton(ctx: Context) : View(ctx) {
 
     /** Сглаженная громкость 0..1 — фон подсвечивается вместе с волной. */
     var onLevel: ((Float) -> Unit)? = null
+    /** Сильная доля: громкость резко выше средней — фон вспыхивает. */
+    var onBeat: (() -> Unit)? = null
+    private var avgLv = 0f
+    private var lastBeat = 0L
 
     private val dp = resources.displayMetrics.density
     private val radius = 70 * dp
@@ -110,6 +114,9 @@ class PulseButton(ctx: Context) : View(ctx) {
         val target = if (live) CaptureService.level else 0f
         smooth += (target - smooth) * 0.2f
         onLevel?.invoke((smooth + flash * 0.7f).coerceAtMost(1f))
+        avgLv += (smooth - avgLv) * 0.05f
+        val now = android.os.SystemClock.uptimeMillis()
+        if (live && smooth - avgLv > 0.07f && smooth > 0.12f && now - lastBeat > 220) { lastBeat = now; onBeat?.invoke() }
         if (live || reveal > 0f) phase += 0.05f + smooth * 0.14f
 
         // волна: к краям затихает, амплитуда растёт с громкостью (и на миг — от вспышки)

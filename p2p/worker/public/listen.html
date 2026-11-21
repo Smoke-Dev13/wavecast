@@ -18,7 +18,9 @@
   /* цвет свечения плавно перетекает при смене обложки */
   @property --glow { syntax: "<color>"; inherits: true; initial-value: #00E5FF; }
   @property --neon { syntax: "<color>"; inherits: true; initial-value: #FF2BD6; }
-  html { background: var(--night); transition: --glow 2.2s ease, --neon 2.2s ease; }
+  @property --c3 { syntax: "<color>"; inherits: true; initial-value: #8A2BFF; }
+  @property --c4 { syntax: "<color>"; inherits: true; initial-value: #2B6BFF; }
+  html { background: var(--night); transition: --glow 2.2s ease, --neon 2.2s ease, --c3 2.2s ease, --c4 2.2s ease; }
   body { margin: 0; min-height: 100vh; min-height: 100dvh; color: var(--milk); font: 400 16px/1.45 var(--body);
          background: var(--night); display: flex; justify-content: center; position: relative; }
   /* сетка осциллографа: видна у свечения и растворяется к краям */
@@ -197,9 +199,30 @@
   #chatBtn { border-color: var(--volt); box-shadow: 0 0 12px rgba(247,240,74,.5); }
   .sticker { border-color: var(--glow); box-shadow: 0 0 12px color-mix(in srgb, var(--glow) 45%, transparent); }
   @media (prefers-reduced-motion: reduce) { .pill.live, .stage::before, .stage::after { animation: none !important; } }
+
+  /* ===== Живой неон: 4 цвета обложки плывут пятнами из угла в угол, мигают и вспыхивают в такт ===== */
+  .aurora { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; transition: filter .25s ease-out; }
+  .aurora i { position: absolute; left: -38vmax; top: -38vmax; width: 76vmax; height: 76vmax; border-radius: 50%;
+         background: radial-gradient(circle, var(--c) 0, color-mix(in srgb, var(--c) 55%, transparent) 22%, transparent 58%);
+         mix-blend-mode: screen; opacity: .5; will-change: transform, opacity; }
+  .aurora i:nth-child(1) { --c: var(--neon); animation: fl1 14s ease-in-out infinite alternate, blink 2.4s ease-in-out infinite; }
+  .aurora i:nth-child(2) { --c: var(--glow); animation: fl2 17s ease-in-out infinite alternate, blink 3.1s ease-in-out -1.2s infinite; }
+  .aurora i:nth-child(3) { --c: var(--c3); animation: fl3 12s ease-in-out infinite alternate, blink 2.7s ease-in-out -.6s infinite; }
+  .aurora i:nth-child(4) { --c: var(--c4); animation: fl4 19s ease-in-out infinite alternate, blink 3.6s ease-in-out -2s infinite; }
+  /* каждое пятно идёт своим путём через углы экрана */
+  @keyframes fl1 { 0% { transform: translate(0, 0); } 33% { transform: translate(100vw, 35vh); } 66% { transform: translate(40vw, 100vh); } 100% { transform: translate(90vw, 90vh); } }
+  @keyframes fl2 { 0% { transform: translate(100vw, 0); } 40% { transform: translate(10vw, 55vh); } 75% { transform: translate(80vw, 100vh); } 100% { transform: translate(0, 85vh); } }
+  @keyframes fl3 { 0% { transform: translate(50vw, 100vh); } 35% { transform: translate(0, 20vh); } 70% { transform: translate(100vw, 10vh); } 100% { transform: translate(60vw, 45vh); } }
+  @keyframes fl4 { 0% { transform: translate(0, 100vh); } 30% { transform: translate(70vw, 60vh); } 65% { transform: translate(95vw, 0); } 100% { transform: translate(20vw, 30vh); } }
+  @keyframes blink { 0%, 100% { opacity: .22; } 45% { opacity: .6; } 55% { opacity: .45; } }
+  /* вспышка на сильной доле: всё разом ярче */
+  body.beat .aurora { filter: brightness(1.8) saturate(1.25); transition: filter .05s; }
+  body.beat .stage::before, body.beat .stage::after { filter: blur(60px) brightness(1.6); }
+  @media (prefers-reduced-motion: reduce) { .aurora i { animation: none !important; } .aurora i:nth-child(2) { transform: translate(100vw, 100vh); } body.beat .aurora { filter: none; } }
 </style>
 </head>
 <body>
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 <main>
   <header>
     <span class="brand">WaveCast</span>
@@ -271,7 +294,14 @@
   function ring(cv, getData) {
     const g = cv.getContext('2d'), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const host = cv.parentElement, N = 96, lvl = new Float32Array(N);
-    let phase = 0, glow = 0, dash = 0, tick = 0, neonB = '#00E5FF', neonA = '#FF2BD6';
+    let phase = 0, glow = 0, dash = 0, tick = 0, neonB = '#00E5FF', neonA = '#FF2BD6', avg = 0, lastBeat = 0;
+    const t0 = performance.now();
+    // цвет волны плавно переливается по палитре обложки (window.__pal — оттенки в градусах)
+    const hueAt = (k) => {
+      const pal = window.__pal || [318, 186, 268, 222], n = pal.length, x = ((performance.now() - t0) / 3500 + k) % n;
+      const i = Math.floor(x), f = x - i, a = pal[i], b = pal[(i + 1) % n];
+      let d = ((b - a + 540) % 360) - 180; return (a + d * (f * f * (3 - 2 * f)) + 360) % 360;
+    };
     function frame() {
       const dpr = Math.min(devicePixelRatio || 1, 2), w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
@@ -286,9 +316,12 @@
       glow += (loud - glow) * 0.1;
       host.style.setProperty('--lv', glow.toFixed(3));
       if (!still) phase += 0.05 + loud * 0.12;
-      if (tick++ % 20 === 0) {                                   // оба неона — из обложки (через CSS-переменные)
-        const cs = getComputedStyle(document.documentElement);
-        neonB = cs.getPropertyValue('--glow').trim() || neonB; neonA = cs.getPropertyValue('--neon').trim() || neonA;
+      if (!still) { neonA = `hsl(${hueAt(0).toFixed(1)} 100% 55%)`; neonB = `hsl(${hueAt(1.5).toFixed(1)} 100% 55%)`; }
+      // вспышка на сильной доле: громкость резко выше средней
+      avg += (loud - avg) * 0.05;
+      const now = performance.now();
+      if (!still && data && loud - avg > 0.07 && loud > 0.12 && now - lastBeat > 220) {
+        lastBeat = now; document.body.classList.add('beat'); setTimeout(() => document.body.classList.remove('beat'), 110);
       }
       g.clearRect(0, 0, w, h);
       g.strokeStyle = '#EFEAE2'; g.lineJoin = 'round'; g.lineCap = 'round';
@@ -479,8 +512,14 @@
   let tintSeq = 0;
   function tint(src) {
     const my = ++tintSeq;                                      // цвета только от последней обложки
-    const set = (a, b) => { if (my !== tintSeq) return; const r = document.documentElement.style; r.setProperty('--neon', a); r.setProperty('--glow', b); };
-    const def = () => set('#FF2BD6', '#00E5FF');
+    // палитра из 4 оттенков: --neon, --glow, --c3, --c4 (CSS) и window.__pal (волна переливается по ней)
+    const set = hs => {
+      if (my !== tintSeq) return;
+      const r = document.documentElement.style, names = ['--neon', '--glow', '--c3', '--c4'];
+      hs.forEach((h, i) => r.setProperty(names[i], `hsl(${h.toFixed(1)} 100% 55%)`));
+      window.__pal = hs;
+    };
+    const def = () => set([318, 186, 268, 222]);
     if (!src) return def();
     const img = new Image();
     img.onload = () => {
@@ -500,13 +539,15 @@
         if (total < 6) return def();                                       // почти серая обложка
         const sm = i => bins[(i + 23) % 24] * .5 + bins[i] + bins[(i + 1) % 24] * .5;   // сглаживаем соседей
         let a = 0; for (let i = 1; i < 24; i++) if (sm(i) > sm(a)) a = i;
-        let b = -1;
-        for (let i = 0; i < 24; i++) {
-          const dist = Math.min(Math.abs(i - a), 24 - Math.abs(i - a));
-          if (dist >= 4 && sm(i) >= sm(a) * .25 && (b < 0 || sm(i) > sm(b))) b = i;  // второй цвет: не ближе 60°
+        // до 4 цветов: заметные оттенки не ближе 45° друг к другу; не хватает — соседние к главному
+        const pick = [a];
+        for (const i of [...Array(24).keys()].sort((x, y) => sm(y) - sm(x))) {
+          if (pick.length >= 4 || sm(i) < sm(a) * .15) break;
+          if (pick.every(j => Math.min(Math.abs(i - j), 24 - Math.abs(i - j)) >= 3)) pick.push(i);
         }
-        const ha = a * 15 + 7.5, hb = b < 0 ? (ha + 40) % 360 : b * 15 + 7.5;
-        set(`hsl(${ha} 100% 55%)`, `hsl(${hb} 100% 55%)`);
+        const hs = pick.map(i => i * 15 + 7.5);
+        for (const d of [40, -40, 80]) if (hs.length < 4) hs.push((hs[0] + d + 360) % 360);
+        set(hs);
       } catch { def(); }
     };
     img.src = src;

@@ -1,6 +1,7 @@
 </style>
 </head>
 <body>
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 <main>
   <header>
     <span class="brand">WaveCast</span>
@@ -220,8 +221,14 @@ RING_JS
   let tintSeq = 0;
   function tint(src) {
     const my = ++tintSeq;                                      // цвета только от последней обложки
-    const set = (a, b) => { if (my !== tintSeq) return; const r = document.documentElement.style; r.setProperty('--neon', a); r.setProperty('--glow', b); };
-    const def = () => set('#FF2BD6', '#00E5FF');
+    // палитра из 4 оттенков: --neon, --glow, --c3, --c4 (CSS) и window.__pal (волна переливается по ней)
+    const set = hs => {
+      if (my !== tintSeq) return;
+      const r = document.documentElement.style, names = ['--neon', '--glow', '--c3', '--c4'];
+      hs.forEach((h, i) => r.setProperty(names[i], `hsl(${h.toFixed(1)} 100% 55%)`));
+      window.__pal = hs;
+    };
+    const def = () => set([318, 186, 268, 222]);
     if (!src) return def();
     const img = new Image();
     img.onload = () => {
@@ -241,13 +248,15 @@ RING_JS
         if (total < 6) return def();                                       // почти серая обложка
         const sm = i => bins[(i + 23) % 24] * .5 + bins[i] + bins[(i + 1) % 24] * .5;   // сглаживаем соседей
         let a = 0; for (let i = 1; i < 24; i++) if (sm(i) > sm(a)) a = i;
-        let b = -1;
-        for (let i = 0; i < 24; i++) {
-          const dist = Math.min(Math.abs(i - a), 24 - Math.abs(i - a));
-          if (dist >= 4 && sm(i) >= sm(a) * .25 && (b < 0 || sm(i) > sm(b))) b = i;  // второй цвет: не ближе 60°
+        // до 4 цветов: заметные оттенки не ближе 45° друг к другу; не хватает — соседние к главному
+        const pick = [a];
+        for (const i of [...Array(24).keys()].sort((x, y) => sm(y) - sm(x))) {
+          if (pick.length >= 4 || sm(i) < sm(a) * .15) break;
+          if (pick.every(j => Math.min(Math.abs(i - j), 24 - Math.abs(i - j)) >= 3)) pick.push(i);
         }
-        const ha = a * 15 + 7.5, hb = b < 0 ? (ha + 40) % 360 : b * 15 + 7.5;
-        set(`hsl(${ha} 100% 55%)`, `hsl(${hb} 100% 55%)`);
+        const hs = pick.map(i => i * 15 + 7.5);
+        for (const d of [40, -40, 80]) if (hs.length < 4) hs.push((hs[0] + d + 360) % 360);
+        set(hs);
       } catch { def(); }
     };
     img.src = src;

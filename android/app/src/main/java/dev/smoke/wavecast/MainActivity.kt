@@ -93,12 +93,24 @@ class MainActivity : Activity() {
         CaptureService.reactionListener = { name, e -> floatReaction(name, e) }
         render(CaptureService.status)
         periodicCheck.run()                        // при каждом возврате и потом раз в 5 минут, пока экран открыт
+        motion.start()
+    }
+
+    // живой неон: пока экран открыт, пятна фона плывут, волна и кольцо переливаются по палитре обложки
+    private val motion = android.animation.TimeAnimator().apply {
+        setTimeListener { _, total, _ ->
+            if (android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f) return@setTimeListener
+            backdrop.beat = (backdrop.beat - 0.09f).coerceAtLeast(0f)
+            backdrop.time = total / 1000f
+            btn.neonA = backdrop.colorAt(0f); btn.neonB = backdrop.colorAt(1.5f)
+        }
     }
 
     override fun onPause() {
         CaptureService.listener = null
         CaptureService.reactionListener = null
         ticker.removeCallbacks(periodicCheck)
+        motion.cancel()
         super.onPause()
     }
 
@@ -197,22 +209,22 @@ class MainActivity : Activity() {
         val art = if (on) st.nowCover else null
         if (art !== tintFor) {
             tintFor = art
-            // оба неона перетекают в цвета обложки: сияния, волна, кнопка, уголки, подсветка текста
-            val (toA, toB) = Backdrop.neonsFrom(art)
-            val fromA = backdrop.neonA; val fromB = backdrop.glowColor
+            // палитра обложки перетекает: пятна фона, сияния, волна, кнопка, уголки, подсветка текста
+            val to = Backdrop.paletteFrom(art)
+            val from = backdrop.palette.copyOf()
             val ev = android.animation.ArgbEvaluator()
             tintAnim?.cancel()
             tintAnim = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
                 duration = 2200
                 addUpdateListener {
                     val f = it.animatedFraction
-                    val a = ev.evaluate(f, fromA, toA) as Int; val b = ev.evaluate(f, fromB, toB) as Int
-                    backdrop.neonA = a; backdrop.glowColor = b
-                    btn.neonA = a; btn.neonB = b
-                    tvNow.setShadowLayer(px(10).toFloat(), 0f, 0f, b)
-                    tvRoom.setShadowLayer(px(9).toFloat(), px(1).toFloat(), 0f, a)
-                    brand.setShadowLayer(px(6).toFloat(), px(1).toFloat(), 0f, a)
-                    Ui.bracket = (b and 0xFFFFFF) or 0xE6000000.toInt()
+                    val pal = IntArray(4) { i -> ev.evaluate(f, from[i], to[i]) as Int }
+                    backdrop.palette = pal
+                    backdrop.neonA = pal[0]; backdrop.glowColor = pal[1]
+                    tvNow.setShadowLayer(px(10).toFloat(), 0f, 0f, pal[1])
+                    tvRoom.setShadowLayer(px(9).toFloat(), px(1).toFloat(), 0f, pal[0])
+                    brand.setShadowLayer(px(6).toFloat(), px(1).toFloat(), 0f, pal[0])
+                    Ui.bracket = (pal[1] and 0xFFFFFF) or 0xE6000000.toInt()
                     tiles.invalidate(); for (i in 0 until tiles.childCount) tiles.getChildAt(i).invalidate(); ivNow.invalidate()
                 }
                 start()
@@ -361,7 +373,7 @@ class MainActivity : Activity() {
         // сцена: круглая кнопка по центру свободного места
         // сцена: волна поперёк экрана, кнопка эфира на ней, сверху — слой для летящих реакций
         val stage = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; clipChildren = false }
-        btn = PulseButton(this).apply { onLevel = { backdrop.lv = it } }
+        btn = PulseButton(this).apply { onLevel = { backdrop.lv = it }; onBeat = { backdrop.beat = 1f } }
         btnBox = android.widget.FrameLayout(this).apply { clipChildren = false; clipToPadding = false }
         val full = android.widget.FrameLayout.LayoutParams.MATCH_PARENT
         btnBox.addView(btn, android.widget.FrameLayout.LayoutParams(full, full))

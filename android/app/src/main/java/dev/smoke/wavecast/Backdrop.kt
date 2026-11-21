@@ -33,6 +33,34 @@ class Backdrop(ctx: Context) : Drawable() {
     /** Цвет свечения: по умолчанию сиреневый, во время эфира — из обложки трека. */
     var glowColor = Ui.GLOW
         set(v) { if (field != v) { field = v; gridH.color = (v and 0xFFFFFF) or 0x1A000000; invalidateSelf() } }
+    /** Палитра обложки (4 неона): пятна плывут по экрану из угла в угол и мигают. */
+    var palette = intArrayOf(Ui.NEON, Ui.GLOW, 0xFF8A2BFF.toInt(), 0xFF2B6BFF.toInt())
+        set(v) { field = v; invalidateSelf() }
+    /** Время в секундах — двигает пятна (задаёт главный экран, пока он открыт). */
+    var time = 0f
+        set(v) { field = v; invalidateSelf() }
+    /** Вспышка на сильной доле 0..1 — пятна разом ярче. */
+    var beat = 0f
+    private val blob = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.ADD) }
+    private val blobShaders = arrayOfNulls<RadialGradient>(4)
+    private val blobKeys = IntArray(4) { -1 }
+    private var blobR = 0f
+    private val m = android.graphics.Matrix()
+    // свои пути и ритмы у каждого пятна: частоты, сдвиги фаз, период мигания (с)
+    private val fx = floatArrayOf(0.071f, 0.053f, 0.089f, 0.047f); private val fy = floatArrayOf(0.059f, 0.083f, 0.041f, 0.067f)
+    private val ph = floatArrayOf(0f, 2.1f, 4.2f, 1.3f); private val blinkT = floatArrayOf(2.4f, 3.1f, 2.7f, 3.6f)
+
+    /** Цвет «по кругу палитры» в момент [time] со сдвигом [k] — для волны и кольца кнопки. */
+    fun colorAt(k: Float): Int {
+        val pal = palette; val n = pal.size
+        val x = ((time / 3.5f + k) % n + n) % n
+        val i = x.toInt(); var f = x - i; f = f * f * (3 - 2 * f)
+        val a = FloatArray(3); val b = FloatArray(3)
+        android.graphics.Color.colorToHSV(pal[i], a); android.graphics.Color.colorToHSV(pal[(i + 1) % n], b)
+        val d = ((b[0] - a[0] + 540f) % 360f) - 180f
+        return android.graphics.Color.HSVToColor(floatArrayOf((a[0] + d * f + 360f) % 360f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f))
+    }
+
     var lv = 0f
         set(v) { if (Math.abs(field - v) > 0.004f) { field = v; invalidateSelf() } }
 
@@ -67,6 +95,23 @@ class Backdrop(ctx: Context) : Drawable() {
         val fk = Triple(cx.toInt(), cy.toInt(), fr.toInt())
         if (fk != fadeKey) { fadeKey = fk; fade.shader = RadialGradient(cx, cy, fr, intArrayOf(0, 0, Ui.BG), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP) }
         c.drawRect(0f, 0f, w, h, fade)
+        // живой неон: 4 пятна цветов обложки плывут из угла в угол, мигают, на сильной доле вспыхивают
+        val br = maxOf(w, h) * 0.42f
+        if (br != blobR) { blobR = br; blobKeys.fill(-1) }
+        for (k in 0 until 4) {
+            val col = palette[k % palette.size]
+            if (blobKeys[k] != col) {
+                blobKeys[k] = col; val rgb = col and 0xFFFFFF
+                blobShaders[k] = RadialGradient(0f, 0f, br, intArrayOf(rgb or 0xFF000000.toInt(), rgb or 0x8C000000.toInt(), 0), floatArrayOf(0f, 0.38f, 1f), Shader.TileMode.CLAMP)
+            }
+            val bx = w * (0.5f + 0.62f * Math.sin((time * fx[k] * 6.283f + ph[k]).toDouble()).toFloat())
+            val by = h * (0.5f + 0.6f * Math.sin((time * fy[k] * 6.283f + ph[k] * 1.7f).toDouble()).toFloat())
+            val blink = 0.5f + 0.5f * Math.sin((time / blinkT[k] * 6.283f + ph[k]).toDouble()).toFloat()
+            val al = ((0.2f + 0.38f * blink) * (1f + beat * 0.9f)).coerceAtMost(1f)
+            m.setTranslate(bx, by); blobShaders[k]!!.setLocalMatrix(m)
+            blob.shader = blobShaders[k]; blob.alpha = (al * 255).toInt()
+            c.drawCircle(bx, by, br, blob)
+        }
         // сканлайны, как на старом экране
         val sStep = 3 * dp
         var sy = 0f; while (sy < h) { c.drawLine(0f, sy, w, sy, scan); sy += sStep }
@@ -75,10 +120,10 @@ class Backdrop(ctx: Context) : Drawable() {
     override fun setAlpha(alpha: Int) {}
 
     companion object {
-        /** Неон в цвет обложки: два главных оттенка картинки на полной яркости (как на странице слушателя).
-         *  Одноцветная обложка — второй неон соседним оттенком; серая или без обложки — малиновый с бирюзовым. */
-        fun neonsFrom(bmp: android.graphics.Bitmap?): Pair<Int, Int> {
-            val def = Ui.NEON to Ui.GLOW
+        /** Палитра обложки для неона: до 4 заметных оттенков (не ближе 45°) на полной яркости,
+         *  не хватает — соседние к главному; серая или без обложки — малиновый, бирюзовый, фиолетовый, синий. */
+        fun paletteFrom(bmp: android.graphics.Bitmap?): IntArray {
+            val def = intArrayOf(Ui.NEON, Ui.GLOW, 0xFF8A2BFF.toInt(), 0xFF2B6BFF.toInt())
             if (bmp == null) return def
             return try {
                 val n = 16
@@ -96,15 +141,15 @@ class Backdrop(ctx: Context) : Drawable() {
                 if (s !== bmp) s.recycle()
                 if (total < 6) return def                                       // почти серая обложка
                 fun sm(i: Int) = bins[(i + 23) % 24] * 0.5f + bins[i] + bins[(i + 1) % 24] * 0.5f
-                var a = 0; for (i in 1 until 24) if (sm(i) > sm(a)) a = i
-                var b = -1
-                for (i in 0 until 24) {
-                    val dist = minOf(Math.abs(i - a), 24 - Math.abs(i - a))
-                    if (dist >= 4 && sm(i) >= sm(a) * 0.25f && (b < 0 || sm(i) > sm(b))) b = i   // второй цвет: не ближе 60°
+                val order = (0 until 24).sortedByDescending { sm(it) }
+                val a = order[0]; val pick = mutableListOf(a)
+                for (i in order) {
+                    if (pick.size >= 4 || sm(i) < sm(a) * 0.15f) break
+                    if (pick.all { j -> minOf(Math.abs(i - j), 24 - Math.abs(i - j)) >= 3 }) pick.add(i)
                 }
-                val ha = a * 15f + 7.5f
-                val hb = if (b < 0) (ha + 40f) % 360f else b * 15f + 7.5f
-                hslToColor(ha, 1f, 0.55f) to hslToColor(hb, 1f, 0.55f)
+                val hs = pick.map { it * 15f + 7.5f }.toMutableList()
+                for (d in floatArrayOf(40f, -40f, 80f)) if (hs.size < 4) hs.add((hs[0] + d + 360f) % 360f)
+                IntArray(4) { hslToColor(hs[it], 1f, 0.55f) }
             } catch (e: Exception) { def }
         }
 
