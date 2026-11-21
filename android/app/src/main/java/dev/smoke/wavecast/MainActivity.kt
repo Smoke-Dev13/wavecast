@@ -57,6 +57,7 @@ class MainActivity : Activity() {
     private lateinit var ivNow: ImageView
     private lateinit var floats: android.widget.FrameLayout
     private lateinit var npCard: LinearLayout
+    private lateinit var clipCard: LinearLayout
     private lateinit var npTitle: TextView
     private lateinit var npText: TextView
     private lateinit var npPrimary: Button
@@ -99,6 +100,7 @@ class MainActivity : Activity() {
 
     // живой неон: пока экран открыт, пятна фона плывут, волна и кольцо переливаются по палитре обложки
     private var animTime = 0f
+    private var clipTint = false
     private var lastTotal = 0L
     private val motion = android.animation.TimeAnimator().apply {
         setTimeListener { _, total, _ ->
@@ -107,6 +109,15 @@ class MainActivity : Activity() {
             animTime += (total - lastTotal) / 1000f / backdrop.look.mv      // темп — по жанру
             lastTotal = total
             backdrop.time = animTime
+            // клип: подсветка повторяет цвета кадра (плавно догоняет их)
+            val cp = CaptureService.clipPalette
+            if (cp != null) {
+                tintAnim?.cancel(); clipTint = true
+                val ev = android.animation.ArgbEvaluator()
+                val pal = IntArray(4) { i -> ev.evaluate(0.1f, backdrop.palette[i], cp[i]) as Int }
+                backdrop.palette = pal; backdrop.neonA = pal[0]; backdrop.glowColor = pal[1]
+                Ui.bracket = (pal[1] and 0xFFFFFF) or 0xE6000000.toInt()
+            } else if (clipTint) { clipTint = false; tintFor = null; render(CaptureService.status) }   // клип кончился — цвета жанра
             btn.neonA = backdrop.colorAt(0f); btn.neonB = backdrop.colorAt(1.5f)
         }
     }
@@ -156,6 +167,7 @@ class MainActivity : Activity() {
             .putExtra(CaptureService.EXTRA_HOST_KEY, s.hostKey)
             .putExtra(CaptureService.EXTRA_AUTO, s.autoAllow)
             .putExtra(CaptureService.EXTRA_NOW_PLAYING, s.showNowPlaying)
+            .putExtra(CaptureService.EXTRA_CLIPS, s.showClips)
         startForegroundService(i)
     }
 
@@ -244,6 +256,8 @@ class MainActivity : Activity() {
             }
         }
         npCard.visibility = if (!on && s.showNowPlaying && !NowPlaying.allowed(this)) View.VISIBLE else View.GONE
+        clipCard.visibility = if (!on && s.showClips && !s.clipsAsked && !ClipCapture.allowed(this) && npCard.visibility != View.VISIBLE) View.VISIBLE else View.GONE
+        tvLive.text = if (on && st.clipLive) "В ЭФИРЕ · КЛИП" else tvLive.text
         if (s.nowPlayingAsked) {
             // уже отправляли в настройки, а доступа нет — скорее всего, «Настройки с ограниченным доступом»
             npTitle.text = "Android не дал доступ?"
@@ -378,6 +392,19 @@ class MainActivity : Activity() {
         }
         npCard.addView(npSkip)
         root.addView(npCard, wide(14))
+
+        // предложение показывать друзьям клипы (нужен «Доступ к истории использования»)
+        clipCard = card(22, 16).apply { visibility = View.GONE }
+        clipCard.addView(label("Покажи друзьям клип", 16f, Ui.MILK, Ui.bold))
+        clipCard.addView(label("Когда смотришь YouTube или другой видеоплеер, друзья увидят клип, а подсветка повторит цвета кадра. Разреши WaveCast «Доступ к истории использования» — так он понимает, что открыт плеер", 13f, Ui.DIM).apply { setLineSpacing(px(2).toFloat(), 1f) }, wide(6))
+        val clipRow = LinearLayout(this)
+        clipRow.addView(chipButton("Разрешить", Ui.LILAC, Ui.INK).apply {
+            setOnClickListener { s.clipsAsked = true; s.showClips = true; SettingsActivity.openUsageSettings(this@MainActivity) } })
+        clipRow.addView(chipButton("Не надо", Ui.BG, Ui.MILK).apply {
+            setOnClickListener { s.clipsAsked = true; s.showClips = false; clipCard.visibility = View.GONE } },
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = px(8) })
+        clipCard.addView(clipRow, wide(12))
+        root.addView(clipCard, wide(14))
 
         // кто просится в эфир — наверху, это главное во время эфира
         reqBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }

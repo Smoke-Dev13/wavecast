@@ -22,6 +22,7 @@
     <label for="name">Как тебя зовут? Ведущий увидит имя в запросе</label>
     <input id="name" maxlength="24" autocomplete="nickname" placeholder="Например, Аня">
   </div>
+  <div class="clip br" id="clip" hidden><video id="clipV" muted playsinline autoplay aria-label="Клип, который смотрит ведущий"></video><span class="clip-tag">КЛИП</span></div>
   <div class="now br" id="now"><img id="cover" alt=""><div><div class="t" id="title"></div><div class="a" id="artist"></div><div class="genre" id="genre" hidden></div></div></div>
   <div class="ctl">
     <label class="vol">
@@ -135,7 +136,11 @@ RING_JS
         drop();
         const p = pc = new RTCPeerConnection({ iceServers: ice });
         p.onicecandidate = e => { if (e.candidate) send({ type: 'ice', candidate: e.candidate }); };
-        p.ontrack = e => { audio.srcObject = e.streams[0] || new MediaStream([e.track]); if (wanted) play(); };
+        p.ontrack = e => {
+          // клип ведущего — отдельной картинкой вместо обложки; звук — как раньше
+          if (e.track.kind === 'video') { $('clipV').srcObject = new MediaStream([e.track]); return; }
+          audio.srcObject = e.streams[0] || new MediaStream([e.track]); if (wanted) play();
+        };
         p.ondatachannel = e => {   // канал от ведущего: что играет и реакции
           dc = e.channel;
           dc.onopen = () => { $('reacts').style.display = 'flex'; };
@@ -207,10 +212,25 @@ RING_JS
     clearTimeout(rejoin);
     if (pc) { pc.onconnectionstatechange = null; pc.close(); pc = null; }
     dc = null; $('reacts').style.display = 'none'; $('link').textContent = '';
+    clip(false);
+  }
+
+  // клип: пока у ведущего на экране видеоплеер — видео вместо обложки, подсветка по цветам кадра
+  var clipOn = false, lastTrack = null;
+  function clip(on) {
+    if (on === clipOn) return;
+    clipOn = on;
+    $('clip').hidden = !on;
+    document.documentElement.classList.toggle('clipmode', on);
+    if (on) $('clipV').play().catch(() => {});
+    else { $('clipV').pause(); showTrack(lastTrack); }              // клип кончился — цвета жанра
   }
 
   function onData(d) {
     if (d.type === 'track') showTrack(d.title ? d : null);
+    if (d.type === 'video') clip(!!d.on);
+    if (d.type === 'pal' && clipOn && Array.isArray(d.c) && d.c.length === 4 && d.c.every(c => Array.isArray(c) && c.length === 3 && c.every(Number.isFinite)))
+      palette(d.c.map(([h, s, l]) => [h % 360, Math.min(100, Math.max(0, s)), Math.min(80, Math.max(30, l))]));
     if (d.type === 'chat') Chat.message(d);
     if (d.type === 'chat-history') Chat.history(d.items);
     if (d.type === 'react' && EMOJI.includes(d.e)) float(d.e, d.name);
@@ -287,7 +307,8 @@ RING_JS
     theme(t);
     const th = document.body.dataset.theme;
     // цвета под музыку: по жанру; жанр не найден — фирменный неон (кадр клипа даёт случайные цвета)
-    tintSeq++; palette(th ? PALETTES[th] : [[318, 100, 55], [186, 100, 55], [268, 100, 55], [222, 100, 55]]);
+    lastTrack = t;
+    if (!clipOn) { tintSeq++; palette(th ? PALETTES[th] : [[318, 100, 55], [186, 100, 55], [268, 100, 55], [222, 100, 55]]); }
     if (!t) { document.title = room + ' — WaveCast'; if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: room, artist: 'WaveCast' }); return; }
     $('title').textContent = $('title').title = t.title;
     $('artist').textContent = $('artist').title = t.artist || '';
@@ -320,6 +341,11 @@ CHAT_JS
     lastReact = now; dc.send(JSON.stringify({ type: 'react', e })); return true;
   });
   setupViewer();
+  // клип во весь экран по нажатию (повернул телефон — смотришь как в плеере)
+  $('clip').addEventListener('click', () => {
+    const v = $('clipV'); const fs = v.requestFullscreen || v.webkitEnterFullscreen || v.webkitRequestFullscreen;
+    if (fs) try { fs.call(v); } catch {}
+  });
   Chat.setSend(o => { if (!dc || dc.readyState !== 'open') return false; dc.send(JSON.stringify(o)); return true; });
 
   function ui() {

@@ -18,6 +18,7 @@
 // Канал данных «meta» к каждому слушателю (только к пущенным): ведущий шлёт {type:"track"} — что играет,
 // слушатель шлёт {type:"react", e:"🔥"}; реакции расходятся остальным слушателям и в приложение.
 // Приложение: wcTrack(json|null) — сменился трек, wcKick(id) — отключить слушателя.
+// vid=ws://… — кадры клипа (JPEG) и {video:bool}/{pal:[…]} от приложения: видеодорожка и подсветка по кадру.
 // В onState приходит people: [{id, name}] — кто сейчас слушает.
 //
 // Чат: слушатель шлёт {type:"chat", text, n}; страница передаёт его в приложение (onChat), приложение
@@ -28,6 +29,7 @@
   const signal = (P.get('signal') || '').replace(/^http/, 'ws').replace(/\/+$/, '');
   const room = P.get('room') || '', key = P.get('key') || '';
   const srcUrl = P.get('src') || `ws://${location.host}/ws`;
+  const vidUrl = P.get('vid') || '';
   const MAX = +(P.get('max') || 30), BITRATE = +(P.get('bitrate') || 128000);
   const MAX_PENDING = 5;
   let auto = P.get('auto') === '1';
@@ -107,6 +109,43 @@
     })();
   }
 
+  // ---------- клип: JPEG-кадры с экрана → canvas → видеодорожка; подсветка по кадру ----------
+  const vcv = document.createElement('canvas'); vcv.width = 640; vcv.height = 360;
+  const vg = vcv.getContext('2d');
+  let vtrack = null, videoOn = false, clipPal = null, drawing = false;
+  function setVideo(on) {
+    videoOn = on;
+    for (const m of meta.values()) if (m.vt) m.vt.sender.replaceTrack(on ? vtrack : null).catch(() => {});
+    toAll({ type: 'video', on });
+    if (!on) clipPal = null;
+  }
+  if (vidUrl && vcv.captureStream) {
+    vtrack = vcv.captureStream(12).getVideoTracks()[0];
+    vtrack.contentHint = 'motion';
+    (function vid() {
+      const ws = new WebSocket(vidUrl);
+      ws.binaryType = 'arraybuffer';
+      ws.onmessage = async e => {
+        if (typeof e.data === 'string') {
+          try {
+            const d = JSON.parse(e.data);
+            if (typeof d.video === 'boolean' && d.video !== videoOn) setVideo(d.video);
+            if (Array.isArray(d.pal)) { clipPal = d.pal; toAll({ type: 'pal', c: d.pal }); }
+          } catch {}
+          return;
+        }
+        if (drawing) return;                                  // не успеваем — пропускаем кадр
+        drawing = true;
+        try {
+          const bmp = await createImageBitmap(new Blob([e.data], { type: 'image/jpeg' }));
+          if (vcv.width !== bmp.width || vcv.height !== bmp.height) { vcv.width = bmp.width; vcv.height = bmp.height; }
+          vg.drawImage(bmp, 0, 0); bmp.close();
+        } catch {} finally { drawing = false; }
+      };
+      ws.onclose = () => { if (videoOn) setVideo(false); setTimeout(vid, 1000); };
+    })();
+  }
+
   // ---------- WebRTC ----------
   const musicSdp = sdp => sdp.replace(/a=fmtp:(\d+) (.*useinbandfec=1[^\r\n]*)/g,
     (s, pt, rest) => /stereo=1/.test(rest) ? s : `a=fmtp:${pt} ${rest};stereo=1;sprop-stereo=1;maxaveragebitrate=${BITRATE}`);
@@ -146,9 +185,13 @@
     const sender = pc.addTrack(track, stream);
     const m = meta.get(id) || { name: 'Гость', cid: id };
     meta.set(id, m);
+    // видео-место есть всегда; картинка идёт, только пока на экране ведущего видеоплеер
+    m.vt = vtrack ? pc.addTransceiver('video', { direction: 'sendonly', streams: [stream] }) : null;
+    if (m.vt && videoOn) m.vt.sender.replaceTrack(vtrack).catch(() => {});
     m.dc = pc.createDataChannel('meta');
     m.dc.onopen = () => {
       if (nowPlaying) dcSend(m.dc, { type: 'track', ...nowPlaying });
+      if (videoOn) { dcSend(m.dc, { type: 'video', on: true }); if (clipPal) dcSend(m.dc, { type: 'pal', c: clipPal }); }
       dcSend(m.dc, { type: 'chat-history', items: history });
     };
     m.dc.onmessage = e => { try { onData(id, JSON.parse(e.data)); } catch {} };
@@ -162,6 +205,10 @@
     await pc.setLocalDescription(off);
     const prm = sender.getParameters();
     if (prm.encodings && prm.encodings[0]) { prm.encodings[0].maxBitrate = BITRATE; sender.setParameters(prm).catch(() => {}); }
+    if (m.vt) {                                                // клип: ~700 кбит/с, 12 к/с — экономно для мобильного интернета
+      const vp = m.vt.sender.getParameters();
+      if (vp.encodings && vp.encodings[0]) { vp.encodings[0].maxBitrate = 700000; vp.encodings[0].maxFramerate = 12; m.vt.sender.setParameters(vp).catch(() => {}); }
+    }
     send({ to: id, type: 'offer', sdp: off.sdp });
     report();
   }

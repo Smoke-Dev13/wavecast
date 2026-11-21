@@ -48,6 +48,7 @@ class CaptureService : Service() {
         val nowCover: android.graphics.Bitmap? = null,
         val nowTheme: String? = null,                // тема по жанру: club, street, rock, pop, night, calm, warm
         val nowGenre: String? = null,                // метка жанра для людей
+        val clipLive: Boolean = false,               // друзья сейчас видят клип с экрана
         val chatUnread: Int = 0,                     // новых сообщений в чате, пока экран чата не открыт
         val autoAllow: Boolean = false,
         val error: String? = null,
@@ -94,6 +95,9 @@ class CaptureService : Service() {
         private const val CHAT_NOTIF_ID = 2
         private const val HISTORY = 30
         const val EXTRA_NOW_PLAYING = "nowPlaying"
+        const val EXTRA_CLIPS = "clips"
+        /** Подсветка по кадру клипа (4 цвета) или null — главный экран берёт её вместо цветов жанра. */
+        @Volatile var clipPalette: IntArray? = null
         const val EXTRA_REQ = "req"
         const val EXTRA_ALLOW = "allow"
 
@@ -136,6 +140,7 @@ class CaptureService : Service() {
     private var p2p: P2PHost? = null
     private var local: LocalServer? = null
     private var nowPlaying: NowPlaying? = null
+    private var clip: ClipCapture? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -227,6 +232,26 @@ class CaptureService : Service() {
                 p2p?.track(json)
                 local?.track(json?.let { org.json.JSONObject(it).put("type", "track").toString() })
             }.also { it.start() }
+        }
+
+        // Клип в эфир: картинка с экрана, только пока открыт видеоплеер (нужен «Доступ к истории использования»)
+        if (intent.getBooleanExtra(EXTRA_CLIPS, true) && p2p != null && ClipCapture.allowed(this)) {
+            val srvRef = srv.second
+            clip = ClipCapture(this, mp,
+                onFrame = { srvRef.videoFrame(it) },
+                onState = { on ->
+                    srvRef.videoState(on)
+                    if (!on) clipPalette = null
+                    main.post { publish(status.copy(clipLive = on)) }
+                },
+                onPalette = { pal ->
+                    clipPalette = pal
+                    val hsl = FloatArray(3)
+                    srvRef.videoPalette(pal.joinToString(",", "[", "]") { c ->
+                        Backdrop.androidx_hsl((c shr 16) and 255, (c shr 8) and 255, c and 255, hsl)
+                        "[${hsl[0].toInt()},${(hsl[1] * 100).toInt()},${(hsl[2] * 100).toInt()}]"
+                    })
+                }).also { it.start() }
         }
 
         acquireLocks()
@@ -435,6 +460,7 @@ class CaptureService : Service() {
         status.requests.forEach { getSystemService(NotificationManager::class.java).cancel(notifId(it.key)) }
         sinks.forEach { runCatching { it.close() } }
         sinks.clear()
+        clip?.stop(); clip = null; clipPalette = null
         runCatching { projection?.stop() }
         projection = null
         wakeLock?.let { if (it.isHeld) it.release() }

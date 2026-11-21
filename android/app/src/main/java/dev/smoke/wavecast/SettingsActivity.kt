@@ -22,6 +22,7 @@ class SettingsActivity : Activity() {
     private lateinit var swAuto: Switch
     private lateinit var swNow: Switch
     private lateinit var nowHelp: TextView
+    private lateinit var swClips: Switch
     private lateinit var tvUpdate: TextView
     private lateinit var btnUpdate: Button
 
@@ -41,6 +42,10 @@ class SettingsActivity : Activity() {
             s.showNowPlaying = on; s.nowPlayingAsked = true
             if (on && !NowPlaying.allowed(this)) openListenerSettings(this)
         }
+        swClips.setOnCheckedChangeListener { _, on ->
+            s.showClips = on; s.clipsAsked = true
+            if (on && !ClipCapture.allowed(this)) openUsageSettings(this)
+        }
         renderUpdate(Updater.available, null)
     }
 
@@ -49,6 +54,7 @@ class SettingsActivity : Activity() {
         // переключатель включён, только если и настройка включена, и Android дал доступ
         swNow.isChecked = s.showNowPlaying && NowPlaying.allowed(this)
         nowHelp.visibility = if (s.showNowPlaying && s.nowPlayingAsked && !NowPlaying.allowed(this)) View.VISIBLE else View.GONE
+        swClips.isChecked = s.showClips && ClipCapture.allowed(this)
     }
 
     override fun onPause() {
@@ -160,6 +166,8 @@ class SettingsActivity : Activity() {
             setOnClickListener { startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) }
         }
         g2.addView(nowHelp)
+        divider(g2)
+        swClips = toggleRow(g2, "Показывать друзьям клипы", "Когда открыт YouTube или другой видеоплеер, друзья видят клип вместо обложки, а подсветка повторяет цвета кадра. Вышел из плеера — снова обложка. Android попросит «Доступ к истории использования»: так WaveCast понимает, что на экране плеер")
 
         section("О приложении")
         val g3 = group()
@@ -182,6 +190,12 @@ class SettingsActivity : Activity() {
         private val LINE = android.graphics.Color.parseColor("#36314F")
 
         /** Системный экран «Доступ к уведомлениям» сразу на WaveCast (Android 11+), иначе общий список. */
+        /** «Доступ к истории использования» — чтобы понимать, что на экране видеоплеер. */
+        fun openUsageSettings(ctx: android.content.Context) {
+            runCatching { ctx.startActivity(Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:${ctx.packageName}"))) }
+                .onFailure { runCatching { ctx.startActivity(Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)) } }
+        }
+
         fun openListenerSettings(a: Activity) {
             val cn = android.content.ComponentName(a, NowPlayingListener::class.java).flattenToString()
             val direct = Intent("android.settings.NOTIFICATION_LISTENER_DETAIL_SETTINGS")

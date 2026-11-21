@@ -1,8 +1,8 @@
 {
-  "versionCode": 30,
-  "versionName": "0.16.2",
-  "url": "wavecast.apk?v=30",
-  "sha256": "6be3caec5a75ab4578b21332a38e74c9b9f7f7195ef460eb391ecca476cc7f61",
-  "size": 1295707,
-  "notes": "Жанр и с YouTube: чистые названия"
+  "versionCode": 31,
+  "versionName": "0.17.0",
+  "url": "wavecast.apk?v=31",
+  "sha256": "5cb77b17c48daa99ac3b159aa69ae5d9235622570f391f4b052b279836451935",
+  "size": 1303899,
+  "notes": "Клип в эфир и подсветка по кадру"
 }

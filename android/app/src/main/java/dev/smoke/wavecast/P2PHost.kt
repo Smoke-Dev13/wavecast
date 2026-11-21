@@ -39,7 +39,7 @@ class P2PHost(
         web.addJavascriptInterface(Bridge(), "WaveCastHost")
         val src = "ws://127.0.0.1:$port/ws?t=$token"
         val hash = "signal=${Uri.encode(service)}&room=${Uri.encode(room)}&key=${Uri.encode(key)}" +
-            "&src=${Uri.encode(src)}&auto=${if (auto) 1 else 0}"
+            "&src=${Uri.encode(src)}&vid=${Uri.encode("ws://127.0.0.1:$port/vid?t=$token")}&auto=${if (auto) 1 else 0}"
         web.loadUrl("http://127.0.0.1:$port/cast.html#$hash")
     }
 
