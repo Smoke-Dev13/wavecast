@@ -44,6 +44,7 @@ class MainActivity : Activity() {
     private lateinit var scroll: ScrollView
     private val backdrop by lazy { Backdrop(this) }
     private var tintFor: Any? = null
+    private val DEFAULT_PAL = Any()
     private var tintAnim: android.animation.ValueAnimator? = null
     private lateinit var brand: TextView
     private lateinit var reqBox: LinearLayout
@@ -218,11 +219,11 @@ class MainActivity : Activity() {
         // свечение перетекает в цвет обложки (без эфира — обычный сиреневый)
         val art = if (on) st.nowCover else null
         val themePal = Themes.of(if (on) st.nowTheme else null).palette
-        val tintKey = themePal ?: art
+        val tintKey: Any? = themePal ?: DEFAULT_PAL
         if (tintKey !== tintFor) {
             tintFor = tintKey
             // палитра обложки перетекает: пятна фона, сияния, волна, кнопка, уголки, подсветка текста
-            val to = themePal ?: Backdrop.paletteFrom(art)          // цвета под музыку: по жанру, иначе из обложки
+            val to = themePal ?: Backdrop.paletteFrom(null)         // цвета под музыку: по жанру; жанр не найден — фирменный неон, не кадр клипа
             val from = backdrop.palette.copyOf()
             val ev = android.animation.ArgbEvaluator()
             tintAnim?.cancel()

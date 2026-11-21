@@ -286,8 +286,8 @@ RING_JS
     $('now').style.display = t ? 'flex' : 'none';
     theme(t);
     const th = document.body.dataset.theme;
-    if (th) { tintSeq++; palette(PALETTES[th]); }                // жанр известен — цвета жанра
-    else tint(t && /^data:image\/(jpeg|png|webp);base64,/.test(t.cover || '') ? t.cover : null);
+    // цвета под музыку: по жанру; жанр не найден — фирменный неон (кадр клипа даёт случайные цвета)
+    tintSeq++; palette(th ? PALETTES[th] : [[318, 100, 55], [186, 100, 55], [268, 100, 55], [222, 100, 55]]);
     if (!t) { document.title = room + ' — WaveCast'; if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: room, artist: 'WaveCast' }); return; }
     $('title').textContent = $('title').title = t.title;
     $('artist').textContent = $('artist').title = t.artist || '';

@@ -88,7 +88,9 @@ class NowPlaying(private val ctx: Context, private val onChange: (title: String?
         val key = "$title|$artist|${art?.generationId}"
         if (key == lastKey) return@Runnable
         lastKey = key
-        val o = JSONObject().put("title", title).put("artist", artist ?: "")
+        // чистые названия: без «(Official Video)», исполнитель из «Группа - Песня», а не канал/лейбл
+        val (cleanArtist, cleanTitle) = Genre.clean(artist, title)
+        val o = JSONObject().put("title", cleanTitle).put("artist", cleanArtist)
         val small = scaled(art)
         cover(small)?.let { o.put("cover", it) }
         // жанр → тема оформления: из плеера, иначе из каталога iTunes; пришёл позже — шлём трек ещё раз
@@ -97,10 +99,10 @@ class NowPlaying(private val ctx: Context, private val onChange: (title: String?
             val t = Genre.themeOf(g) ?: return false
             o.put("genre", t.label).put("theme", t.id); return true
         }
-        if (own != null && withGenre(own)) { publish(title, artist, o.toString(), small); return@Runnable }
-        publish(title, artist, o.toString(), small)
-        Genre.lookup(artist, title) { g ->
-            main.post { if (started && key == lastKey && withGenre(g)) onChange(title, artist, o.toString(), small) }
+        if (own != null && withGenre(own)) { publish(cleanTitle, cleanArtist, o.toString(), small); return@Runnable }
+        publish(cleanTitle, cleanArtist, o.toString(), small)
+        Genre.lookup(cleanArtist, cleanTitle) { g ->
+            main.post { if (started && key == lastKey && withGenre(g)) onChange(cleanTitle, cleanArtist, o.toString(), small) }
         }
     }
 
