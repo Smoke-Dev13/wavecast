@@ -6,7 +6,8 @@
   * { box-sizing: border-box; }
   /* цвет свечения плавно перетекает при смене обложки */
   @property --glow { syntax: "<color>"; inherits: true; initial-value: #00E5FF; }
-  html { background: var(--night); transition: --glow 2.2s ease; }
+  @property --neon { syntax: "<color>"; inherits: true; initial-value: #FF2BD6; }
+  html { background: var(--night); transition: --glow 2.2s ease, --neon 2.2s ease; }
   body { margin: 0; min-height: 100vh; min-height: 100dvh; color: var(--milk); font: 400 16px/1.45 var(--body);
          background: var(--night); display: flex; justify-content: center; position: relative; }
   /* сетка осциллографа: видна у свечения и растворяется к краям */
@@ -151,12 +152,12 @@
   @media (prefers-reduced-motion: reduce) { .pill.live i, .stage::before, body[data-mode="knock"] .stage::before { animation: none; } #btn, .sticker { transition: none; } }
 
   /* ===== Киберпанк: два неоновых сияния, неоновая волна, глитч, сканлайны ===== */
-  body::before { background-image: linear-gradient(rgba(0,229,255,.10) 1px, transparent 1px), linear-gradient(90deg, rgba(255,43,214,.10) 1px, transparent 1px); }
+  body::before { background-image: linear-gradient(color-mix(in srgb, var(--glow) 10%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--neon) 10%, transparent) 1px, transparent 1px); }
   /* сканлайны поверх всего, как на старом экране */
   body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 30;
          background: repeating-linear-gradient(0deg, rgba(0,0,0,.2) 0, rgba(0,0,0,.2) 1px, transparent 1px, transparent 3px); }
-  .brand { text-shadow: -1.5px 0 var(--glow), 1.5px 0 var(--neon), 0 0 14px rgba(255,43,214,.55); }
-  h1 { text-shadow: -2px 0 var(--glow), 2px 0 var(--neon), 0 0 18px rgba(255,43,214,.5); }
+  .brand { text-shadow: -1.5px 0 var(--glow), 1.5px 0 var(--neon), 0 0 14px color-mix(in srgb, var(--neon) 55%, transparent); }
+  h1 { text-shadow: -2px 0 var(--glow), 2px 0 var(--neon), 0 0 18px color-mix(in srgb, var(--neon) 50%, transparent); }
   .pill.live { color: var(--volt); border-color: var(--volt); box-shadow: 0 0 12px rgba(247,240,74,.5), inset 0 0 8px rgba(247,240,74,.25); animation: flick 4s linear infinite; }
   .pill.live i { background: var(--volt); }
   @keyframes flick { 0%, 96%, 100% { opacity: 1; } 97% { opacity: .55; } 98% { opacity: 1; } 99% { opacity: .7; } }
@@ -174,7 +175,7 @@
   body[data-mode="nosig"] .stage::before { background: var(--neon); opacity: .22; transform: translate(-50%, -50%) scale(.5); }
   body[data-mode="nosig"] .stage::after { opacity: .12; transform: translate(-50%, -50%) scale(.4); animation: none; }
   #btn { border: 2px solid var(--neon); background: rgba(7,4,15,.72); color: #EFFBFF;
-         box-shadow: 0 0 18px var(--neon), 0 0 46px rgba(255,43,214,.55), inset 0 0 22px rgba(255,43,214,.45); }
+         box-shadow: 0 0 18px var(--neon), 0 0 46px color-mix(in srgb, var(--neon) 55%, transparent), inset 0 0 22px color-mix(in srgb, var(--neon) 45%, transparent); }
   #btn svg { filter: drop-shadow(0 0 6px var(--neon)); }
   #btn.on { background: rgba(7,4,15,.72); }
   #btn:disabled { border-color: var(--edge); box-shadow: none; }

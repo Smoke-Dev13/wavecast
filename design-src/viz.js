@@ -5,8 +5,7 @@
   function ring(cv, getData) {
     const g = cv.getContext('2d'), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const host = cv.parentElement, N = 96, lvl = new Float32Array(N);
-    let phase = 0, glow = 0, dash = 0, tick = 0, neonB = '#00E5FF';
-    const neonA = '#FF2BD6';
+    let phase = 0, glow = 0, dash = 0, tick = 0, neonB = '#00E5FF', neonA = '#FF2BD6';
     function frame() {
       const dpr = Math.min(devicePixelRatio || 1, 2), w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
@@ -21,7 +20,10 @@
       glow += (loud - glow) * 0.1;
       host.style.setProperty('--lv', glow.toFixed(3));
       if (!still) phase += 0.05 + loud * 0.12;
-      if (tick++ % 20 === 0) neonB = getComputedStyle(document.documentElement).getPropertyValue('--glow').trim() || neonB;
+      if (tick++ % 20 === 0) {                                   // оба неона — из обложки (через CSS-переменные)
+        const cs = getComputedStyle(document.documentElement);
+        neonB = cs.getPropertyValue('--glow').trim() || neonB; neonA = cs.getPropertyValue('--neon').trim() || neonA;
+      }
       g.clearRect(0, 0, w, h);
       g.strokeStyle = '#EFEAE2'; g.lineJoin = 'round'; g.lineCap = 'round';
       if (mode === 'nosig') {

@@ -23,8 +23,8 @@ android {
         applicationId = "dev.smoke.wavecast"
         minSdk = 29          // AudioPlaybackCapture появился в Android 10
         targetSdk = 34
-        versionCode = 24
-        versionName = "0.13.0"
+        versionCode = 25
+        versionName = "0.14.0"
     }
 
     signingConfigs {

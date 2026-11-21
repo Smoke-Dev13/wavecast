@@ -18,6 +18,9 @@ class Backdrop(ctx: Context) : Drawable() {
     private val dp = ctx.resources.displayMetrics.density
     private val gridH = Paint().apply { color = 0x1A00E5FF; strokeWidth = maxOf(1f, dp * 0.6f) }
     private val gridV = Paint().apply { color = 0x1AFF2BD6; strokeWidth = maxOf(1f, dp * 0.6f) }
+    /** Первый неон (по умолчанию малиновый), в эфире — главный цвет обложки. */
+    var neonA = Ui.NEON
+        set(v) { if (field != v) { field = v; gridV.color = (v and 0xFFFFFF) or 0x1A000000; invalidateSelf() } }
     private val scan = Paint().apply { color = 0x30000000; strokeWidth = maxOf(1f, dp * 0.5f) }
     private val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.ADD) }
     private val glowA = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.ADD) }
@@ -29,7 +32,7 @@ class Backdrop(ctx: Context) : Drawable() {
         set(v) { if (field != v) { field = v; invalidateSelf() } }
     /** Цвет свечения: по умолчанию сиреневый, во время эфира — из обложки трека. */
     var glowColor = Ui.GLOW
-        set(v) { if (field != v) { field = v; invalidateSelf() } }
+        set(v) { if (field != v) { field = v; gridH.color = (v and 0xFFFFFF) or 0x1A000000; invalidateSelf() } }
     var lv = 0f
         set(v) { if (Math.abs(field - v) > 0.004f) { field = v; invalidateSelf() } }
 
@@ -47,9 +50,10 @@ class Backdrop(ctx: Context) : Drawable() {
         // градиенты пересоздаём только когда что-то поменялось, а не каждый кадр
         val ax = cx - 62 * dp; val bx = cx + 58 * dp; val by = cy + 10 * dp
         val ra = 200 * dp * (0.97f + q * 0.1f)
-        val ka = Triple(ax.toInt() * 31 + cy.toInt(), (ra / dp).toInt(), 0)
+        val ka = Triple(ax.toInt() * 31 + cy.toInt(), (ra / dp).toInt(), neonA)
         if (ka != glowAKey) { glowAKey = ka
-            glowA.shader = RadialGradient(ax, cy, ra, intArrayOf(0xF2FF2BD6.toInt(), 0x66FF2BD6, 0), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP) }
+            val rgb = neonA and 0xFFFFFF
+            glowA.shader = RadialGradient(ax, cy, ra, intArrayOf(rgb or 0xF2000000.toInt(), rgb or 0x66000000, 0), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP) }
         c.drawCircle(ax, cy, ra, glowA)
         val key = Triple(bx.toInt() * 31 + by.toInt(), (r / dp).toInt(), core)
         if (key != glowKey) { glowKey = key; glow.shader = RadialGradient(bx, by, r, intArrayOf(core, mid, 0), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP) }
@@ -71,13 +75,15 @@ class Backdrop(ctx: Context) : Drawable() {
     override fun setAlpha(alpha: Int) {}
 
     companion object {
-        /** Самый «живой» оттенок обложки, приглушённый до спокойного (как на странице слушателя). */
-        fun glowFrom(bmp: android.graphics.Bitmap?): Int {
-            if (bmp == null) return Ui.GLOW
+        /** Неон в цвет обложки: два главных оттенка картинки на полной яркости (как на странице слушателя).
+         *  Одноцветная обложка — второй неон соседним оттенком; серая или без обложки — малиновый с бирюзовым. */
+        fun neonsFrom(bmp: android.graphics.Bitmap?): Pair<Int, Int> {
+            val def = Ui.NEON to Ui.GLOW
+            if (bmp == null) return def
             return try {
                 val n = 16
                 val s = android.graphics.Bitmap.createScaledBitmap(bmp, n, n, true)
-                val hsl = FloatArray(3); var x = 0.0; var y = 0.0; var ws = 0.0; var sw = 0.0
+                val hsl = FloatArray(3); val bins = FloatArray(24); var total = 0f
                 for (i in 0 until n) for (j in 0 until n) {
                     val c = s.getPixel(i, j)
                     val r = android.graphics.Color.red(c); val g = android.graphics.Color.green(c); val b = android.graphics.Color.blue(c)
@@ -85,14 +91,21 @@ class Backdrop(ctx: Context) : Drawable() {
                     androidx_hsl(r, g, b, hsl)
                     val w = hsl[1] * (1 - Math.abs(hsl[2] - 0.5f) * 1.6f)
                     if (w <= 0) continue
-                    val h = Math.toRadians(hsl[0].toDouble())
-                    x += Math.cos(h) * w; y += Math.sin(h) * w; ws += w; sw += hsl[1] * w
+                    bins[(hsl[0] / 15f).toInt() % 24] += w; total += w
                 }
                 if (s !== bmp) s.recycle()
-                if (ws < 6) return Ui.GLOW                                      // почти серая обложка
-                val hue = ((Math.toDegrees(Math.atan2(y, x)) + 360) % 360).toFloat()
-                hslToColor(hue, 1f, 0.55f)                                       // неон: полная насыщенность
-            } catch (e: Exception) { Ui.GLOW }
+                if (total < 6) return def                                       // почти серая обложка
+                fun sm(i: Int) = bins[(i + 23) % 24] * 0.5f + bins[i] + bins[(i + 1) % 24] * 0.5f
+                var a = 0; for (i in 1 until 24) if (sm(i) > sm(a)) a = i
+                var b = -1
+                for (i in 0 until 24) {
+                    val dist = minOf(Math.abs(i - a), 24 - Math.abs(i - a))
+                    if (dist >= 4 && sm(i) >= sm(a) * 0.25f && (b < 0 || sm(i) > sm(b))) b = i   // второй цвет: не ближе 60°
+                }
+                val ha = a * 15f + 7.5f
+                val hb = if (b < 0) (ha + 40f) % 360f else b * 15f + 7.5f
+                hslToColor(ha, 1f, 0.55f) to hslToColor(hb, 1f, 0.55f)
+            } catch (e: Exception) { def }
         }
 
         private fun androidx_hsl(r: Int, g: Int, b: Int, out: FloatArray) {

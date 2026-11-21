@@ -34,6 +34,8 @@ object Ui {
     /** Второй неон: бирюзовый, в эфире — цвет обложки. */
     val GLOW = Color.parseColor("#00E5FF")
     val BRACKET = Color.parseColor("#E600E5FF")
+    /** Текущий цвет уголков-скоб: меняется вместе с неоном обложки. */
+    var bracket = BRACKET
     val DIM = Color.parseColor("#B0A2DC")
 
     /** Фирменные шрифты (как на странице слушателя), лежат в assets/fonts. */
@@ -74,11 +76,12 @@ fun Activity.hud(radius: Int = 4): Drawable = HudDrawable(glass(radius), px(11).
 
 class HudDrawable(private val base: Drawable, private val arm: Float, private val sw: Float) : Drawable() {
     private val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        color = Ui.BRACKET; style = android.graphics.Paint.Style.STROKE; strokeWidth = sw
+        style = android.graphics.Paint.Style.STROKE; strokeWidth = sw
     }
     override fun onBoundsChange(b: android.graphics.Rect) { base.bounds = b }
     override fun draw(c: android.graphics.Canvas) {
         base.draw(c)
+        p.color = Ui.bracket                                  // уголки — второго неона (в эфире — цвет обложки)
         val b = bounds; val h = sw / 2
         val l = b.left + h; val t = b.top + h; val r = b.right - h; val bt = b.bottom - h
         c.drawLine(l, t, l + arm, t, p); c.drawLine(l, t, l, t + arm, p)

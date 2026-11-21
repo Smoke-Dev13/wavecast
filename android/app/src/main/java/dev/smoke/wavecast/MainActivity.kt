@@ -45,6 +45,7 @@ class MainActivity : Activity() {
     private val backdrop by lazy { Backdrop(this) }
     private var tintFor: Bitmap? = null
     private var tintAnim: android.animation.ValueAnimator? = null
+    private lateinit var brand: TextView
     private lateinit var reqBox: LinearLayout
     private lateinit var peopleCard: LinearLayout
     private lateinit var btnChat: Button
@@ -196,14 +197,23 @@ class MainActivity : Activity() {
         val art = if (on) st.nowCover else null
         if (art !== tintFor) {
             tintFor = art
-            val to = Backdrop.glowFrom(art)
+            // оба неона перетекают в цвета обложки: сияния, волна, кнопка, уголки, подсветка текста
+            val (toA, toB) = Backdrop.neonsFrom(art)
+            val fromA = backdrop.neonA; val fromB = backdrop.glowColor
+            val ev = android.animation.ArgbEvaluator()
             tintAnim?.cancel()
-            tintAnim = android.animation.ValueAnimator.ofArgb(backdrop.glowColor, to).apply {
+            tintAnim = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
                 duration = 2200
                 addUpdateListener {
-                    val c = it.animatedValue as Int
-                    backdrop.glowColor = c; btn.neonB = c
-                    tvNow.setShadowLayer(px(10).toFloat(), 0f, 0f, c)
+                    val f = it.animatedFraction
+                    val a = ev.evaluate(f, fromA, toA) as Int; val b = ev.evaluate(f, fromB, toB) as Int
+                    backdrop.neonA = a; backdrop.glowColor = b
+                    btn.neonA = a; btn.neonB = b
+                    tvNow.setShadowLayer(px(10).toFloat(), 0f, 0f, b)
+                    tvRoom.setShadowLayer(px(9).toFloat(), px(1).toFloat(), 0f, a)
+                    brand.setShadowLayer(px(6).toFloat(), px(1).toFloat(), 0f, a)
+                    Ui.bracket = (b and 0xFFFFFF) or 0xE6000000.toInt()
+                    tiles.invalidate(); for (i in 0 until tiles.childCount) tiles.getChildAt(i).invalidate(); ivNow.invalidate()
                 }
                 start()
             }
@@ -271,7 +281,8 @@ class MainActivity : Activity() {
 
         // шапка: марка, статус эфира, настройки
         val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        head.addView(label("WAVECAST", 18f, Ui.MILK, Ui.tech).apply { letterSpacing = 0.08f; setShadowLayer(px(6).toFloat(), px(1).toFloat(), 0f, Ui.NEON) },
+        brand = label("WAVECAST", 18f, Ui.MILK, Ui.tech).apply { letterSpacing = 0.08f; setShadowLayer(px(6).toFloat(), px(1).toFloat(), 0f, Ui.NEON) }
+        head.addView(brand,
             LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         tvLive = label("НЕ В ЭФИРЕ", 12f, Ui.DIM, Ui.tech).apply {
             letterSpacing = 0.06f

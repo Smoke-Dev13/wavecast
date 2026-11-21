@@ -44,7 +44,7 @@
     .hero canvas { height: 170px; }
   }
   /* киберпанк: неоновые кнопки и второе сияние на главной */
-  .btn { background: var(--neon); color: #07040F; box-shadow: 0 0 18px rgba(255,43,214,.6); }
+  .btn { background: var(--neon); color: #07040F; box-shadow: 0 0 18px color-mix(in srgb, var(--neon) 60%, transparent); }
   .btn.quiet { background: var(--glass); color: var(--milk); box-shadow: 0 0 12px color-mix(in srgb, var(--glow) 40%, transparent); border-color: var(--glow); }
   .hero::after { content: ""; position: absolute; z-index: 0; left: 30%; top: 70px; width: 280px; height: 260px; border-radius: 50%;
                  background: var(--neon); filter: blur(90px); opacity: .5; transform: translateX(-50%); pointer-events: none; mix-blend-mode: screen; }

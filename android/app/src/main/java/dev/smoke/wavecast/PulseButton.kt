@@ -71,7 +71,10 @@ class PulseButton(ctx: Context) : View(ctx) {
     private val caption = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Ui.MILK; textSize = 11 * dp; textAlign = Paint.Align.CENTER; letterSpacing = 0.12f
     }
-    /** Второй неон волны: бирюзовый, в эфире — цвет обложки (его задаёт главный экран). */
+    /** Первый неон (тень волны, кольцо и заливка кнопки): малиновый, в эфире — главный цвет обложки. */
+    var neonA = Ui.NEON
+        set(v) { field = v; waveShadow.color = v; waveShadow.alpha = 150; neonRing.color = v; neonRing.alpha = 200 }
+    /** Второй неон волны: бирюзовый, в эфире — второй цвет обложки (его задаёт главный экран). */
     var neonB = Ui.GLOW
         set(v) { field = v; waveGlow.color = v; waveGlow.alpha = 220 }
     // неоновая трубка: малиновая «тень» со сдвигом, ореол второго неона, белая сердцевина
@@ -148,7 +151,7 @@ class PulseButton(ctx: Context) : View(ctx) {
             c.drawCircle(cx, cy, r, neonRing)
             fill.color = 0xE007040F.toInt()
             c.drawCircle(cx, cy, r, fill)
-            ring.color = Ui.NEON; ring.strokeWidth = 2 * dp
+            ring.color = neonA; ring.strokeWidth = 2 * dp
             c.drawCircle(cx, cy, r, ring)
             ring.strokeWidth = maxOf(1f, dp)
             icon.color = Ui.MILK
@@ -159,7 +162,7 @@ class PulseButton(ctx: Context) : View(ctx) {
             c.drawText("СТОП", cx, cy + r * 0.38f, caption)
         } else {
             c.drawCircle(cx, cy, r, neonRing)
-            fill.color = Ui.NEON
+            fill.color = neonA
             c.drawCircle(cx, cy, r, fill)
             icon.color = Ui.INK
             val h = r * 0.24f
