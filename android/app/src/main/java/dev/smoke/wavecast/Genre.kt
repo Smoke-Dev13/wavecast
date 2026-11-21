@@ -16,10 +16,11 @@ object Genre {
     /** Тема: id для страницы/приложения и короткая метка для людей. */
     data class Theme(val id: String, val label: String)
 
-    // порядок важен: «электропоп» — клуб, «поп-рок» — рок, «хип-хоп» не путаем с «поп»
+    // порядок важен: «электропоп» — клуб, «поп-рок» — рок, «хип-хоп» не путаем с «поп», метал — отдельная тёмная тема
     private val RULES = listOf(
         Theme("street", "ХИП-ХОП") to listOf("hip-hop", "hip hop", "hiphop", "rap", "trap", "drill", "grime", "рэп", "хип-хоп"),
-        Theme("rock", "РОК") to listOf("metal", "rock", "punk", "grunge", "hardcore", "alternative", "emo", "рок", "метал", "панк"),
+        Theme("dark", "МЕТАЛ") to listOf("metal", "doom", "sludge", "stoner", "drone", "goth", "industrial", "death", "black", "метал", "дум"),
+        Theme("rock", "РОК") to listOf("rock", "punk", "grunge", "hardcore", "alternative", "emo", "рок", "панк"),
         Theme("club", "ЭЛЕКТРОНИКА") to listOf("electro", "dance", "house", "techno", "edm", "trance", "drum", "dubstep", "bass", "club", "электрон", "техно", "хаус"),
         Theme("night", "R&B") to listOf("r&b", "rnb", "r'n'b", "soul", "funk"),
         Theme("calm", "ЧИЛЛ") to listOf("jazz", "classical", "ambient", "lo-fi", "lofi", "chill", "soundtrack", "piano", "instrumental", "new age", "blues", "джаз", "классик"),

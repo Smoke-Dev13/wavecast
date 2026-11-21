@@ -260,6 +260,14 @@
   body[data-theme="warm"] .tint { opacity: .45; background: radial-gradient(90% 70% at 30% 20%, #FFB347 0, transparent 70%); mix-blend-mode: screen; }
   body[data-theme="warm"].beat .aurora { filter: brightness(1.5); transform: none; }
   @media (prefers-reduced-motion: reduce) { body.beat main, .tint { animation: none !important; } }
+
+  /* метал/дум: темно, тяжело, тлеющий огонь снизу, экран бьёт на ударах */
+  body[data-theme="dark"] { --mv: 2.2; --bk: 2.5; }
+  body[data-theme="dark"] .aurora { filter: contrast(1.25); }
+  body[data-theme="dark"] .tint { opacity: .9; background: radial-gradient(150% 50% at 50% 110%, #8B0000 0, #4A0010 35%, transparent 80%); }
+  body[data-theme="dark"].beat .aurora { filter: brightness(1.7) contrast(1.3); transform: scale(1.04); }
+  body[data-theme="dark"].beat main { animation: shake .2s linear; }
+  body[data-theme="dark"] h1 { text-shadow: -3px 0 var(--c3), 3px 0 var(--neon), 0 0 22px var(--neon); }
 </style>
 </head>
 <body>
@@ -372,6 +380,10 @@
       const i = Math.floor(x), f = x - i, a = pal[i], b = pal[(i + 1) % n];
       let d = ((b - a + 540) % 360) - 180; return (a + d * (f * f * (3 - 2 * f)) + 360) % 360;
     };
+    const slAt = (k) => {                                           // насыщенность и светлота палитры (тёмные темы — тёмный неон)
+      const sl = window.__palSL; if (!sl) return '100% 55%';
+      const n = sl.length, i = Math.floor(((performance.now() - t0) / 1600 + k) % n); return `${sl[i][0]}% ${sl[i][1]}%`;
+    };
     function frame() {
       const dpr = Math.min(devicePixelRatio || 1, 2), w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
@@ -387,12 +399,12 @@
       host.style.setProperty('--lv', glow.toFixed(3));
       if (aur && !still) aur.style.opacity = (0.65 + loud * 1.4).toFixed(2);        // фон дышит громкостью
       if (!still) phase += 0.07 + loud * 0.2;
-      if (!still) { neonA = `hsl(${hueAt(0).toFixed(1)} 100% 55%)`; neonB = `hsl(${hueAt(1.5).toFixed(1)} 100% 55%)`; }
+      if (!still) { neonA = `hsl(${hueAt(0).toFixed(1)} ${slAt(0)})`; neonB = `hsl(${hueAt(1.5).toFixed(1)} ${slAt(1.5)})`; }
       // вспышка на сильной доле: громкость резко выше средней
       avg += (loud - avg) * 0.05;
       const now = performance.now();
       const th = document.body.dataset.theme;
-      const gap = th === 'club' ? 120 : th === 'night' || th === 'warm' ? 320 : th === 'street' ? 260 : 160;
+      const gap = { club: 120, night: 320, warm: 320, dark: 300, street: 260 }[th] || 160;
       if (!still && data && th !== 'calm' && loud - avg > (th === 'club' ? 0.04 : 0.05) && loud > 0.08 && now - lastBeat > gap) {
         lastBeat = now; document.body.classList.add('beat'); setTimeout(() => document.body.classList.remove('beat'), 110);
       }
@@ -424,7 +436,7 @@
       }
       // неоновая трубка: малиновая «тень» со сдвигом, ореол второго неона, белая сердцевина
       g.save(); g.translate(0, 4 * dpr); path(); g.strokeStyle = neonA; g.globalAlpha = 0.55; g.lineWidth = 8 * dpr; g.shadowColor = neonA; g.shadowBlur = 18 * dpr; g.stroke(); g.restore();
-      const fat = document.body.dataset.theme === 'street' ? 1.8 : document.body.dataset.theme === 'calm' ? 0.7 : 1;
+      const fat = { street: 1.8, dark: 1.4, calm: 0.7 }[document.body.dataset.theme] || 1;
       path(); g.strokeStyle = neonB; g.globalAlpha = 0.85; g.lineWidth = 6 * fat * dpr; g.shadowColor = neonB; g.shadowBlur = 16 * dpr; g.stroke();
       path(); g.strokeStyle = '#EFFBFF'; g.globalAlpha = 1; g.lineWidth = 1.8 * fat * dpr; g.shadowBlur = 6 * dpr; g.stroke(); g.shadowBlur = 0;
       g.globalAlpha = 1;

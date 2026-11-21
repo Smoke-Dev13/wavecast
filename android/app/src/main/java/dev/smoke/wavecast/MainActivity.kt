@@ -43,7 +43,7 @@ class MainActivity : Activity() {
     private lateinit var btnBox: android.widget.FrameLayout
     private lateinit var scroll: ScrollView
     private val backdrop by lazy { Backdrop(this) }
-    private var tintFor: Bitmap? = null
+    private var tintFor: Any? = null
     private var tintAnim: android.animation.ValueAnimator? = null
     private lateinit var brand: TextView
     private lateinit var reqBox: LinearLayout
@@ -217,10 +217,12 @@ class MainActivity : Activity() {
         if (st.nowCover != null) ivNow.setImageBitmap(st.nowCover)
         // свечение перетекает в цвет обложки (без эфира — обычный сиреневый)
         val art = if (on) st.nowCover else null
-        if (art !== tintFor) {
-            tintFor = art
+        val themePal = Themes.of(if (on) st.nowTheme else null).palette
+        val tintKey = themePal ?: art
+        if (tintKey !== tintFor) {
+            tintFor = tintKey
             // палитра обложки перетекает: пятна фона, сияния, волна, кнопка, уголки, подсветка текста
-            val to = Backdrop.paletteFrom(art)
+            val to = themePal ?: Backdrop.paletteFrom(art)          // цвета под музыку: по жанру, иначе из обложки
             val from = backdrop.palette.copyOf()
             val ev = android.animation.ArgbEvaluator()
             tintAnim?.cancel()

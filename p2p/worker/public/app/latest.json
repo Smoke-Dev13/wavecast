@@ -1,8 +1,8 @@
 {
-  "versionCode": 28,
-  "versionName": "0.16.0",
-  "url": "wavecast.apk?v=28",
-  "sha256": "e6e9462d63cdc4c6da817a3e2cd8518467d58118d4c4b56d3e6858c96b1e9351",
+  "versionCode": 29,
+  "versionName": "0.16.1",
+  "url": "wavecast.apk?v=29",
+  "sha256": "2fc96b90e672b542f18361929c972b78cb5bcfd4df7398df73a163c7fb301301",
   "size": 1291611,
-  "notes": "Темы по жанру трека"
+  "notes": "Цвета под музыку: палитра по жанру"
 }
