@@ -6,10 +6,10 @@
     const g = cv.getContext('2d'), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const host = cv.parentElement, N = 96, lvl = new Float32Array(N);
     let phase = 0, glow = 0, dash = 0, tick = 0, neonB = '#00E5FF', neonA = '#FF2BD6', avg = 0, lastBeat = 0;
-    const t0 = performance.now();
+    const t0 = performance.now(), aur = document.querySelector('.aurora');
     // цвет волны плавно переливается по палитре обложки (window.__pal — оттенки в градусах)
     const hueAt = (k) => {
-      const pal = window.__pal || [318, 186, 268, 222], n = pal.length, x = ((performance.now() - t0) / 3500 + k) % n;
+      const pal = window.__pal || [318, 186, 268, 222], n = pal.length, x = ((performance.now() - t0) / 1600 + k) % n;
       const i = Math.floor(x), f = x - i, a = pal[i], b = pal[(i + 1) % n];
       let d = ((b - a + 540) % 360) - 180; return (a + d * (f * f * (3 - 2 * f)) + 360) % 360;
     };
@@ -26,12 +26,13 @@
       const loud = sum / N;
       glow += (loud - glow) * 0.1;
       host.style.setProperty('--lv', glow.toFixed(3));
-      if (!still) phase += 0.05 + loud * 0.12;
+      if (aur && !still) aur.style.opacity = (0.65 + loud * 1.4).toFixed(2);        // фон дышит громкостью
+      if (!still) phase += 0.07 + loud * 0.2;
       if (!still) { neonA = `hsl(${hueAt(0).toFixed(1)} 100% 55%)`; neonB = `hsl(${hueAt(1.5).toFixed(1)} 100% 55%)`; }
       // вспышка на сильной доле: громкость резко выше средней
       avg += (loud - avg) * 0.05;
       const now = performance.now();
-      if (!still && data && loud - avg > 0.07 && loud > 0.12 && now - lastBeat > 220) {
+      if (!still && data && loud - avg > 0.05 && loud > 0.08 && now - lastBeat > 160) {
         lastBeat = now; document.body.classList.add('beat'); setTimeout(() => document.body.classList.remove('beat'), 110);
       }
       g.clearRect(0, 0, w, h);
@@ -48,7 +49,7 @@
         for (let x = 0; x <= w; x += 3 * dpr) {
           const i = Math.min(N - 1, Math.floor(x / w * N));
           const edge = Math.sin(Math.PI * x / w);                  // к краям волна затихает
-          const a = (a0 != null ? a0 : 0.06 + lvl[i] * 0.94) * amp * edge;
+          const a = (a0 != null ? a0 : Math.min(1.15, 0.06 + lvl[i] * 1.25)) * amp * edge;
           const y = mid + Math.sin(x / w * 18 + phase) * a * Math.sin(x / w * 5.3 - phase * 0.4 + 1);
           x ? g.lineTo(x, y) : g.moveTo(x, y);
         }

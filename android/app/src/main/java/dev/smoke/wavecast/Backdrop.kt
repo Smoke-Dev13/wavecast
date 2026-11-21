@@ -47,13 +47,13 @@ class Backdrop(ctx: Context) : Drawable() {
     private var blobR = 0f
     private val m = android.graphics.Matrix()
     // свои пути и ритмы у каждого пятна: частоты, сдвиги фаз, период мигания (с)
-    private val fx = floatArrayOf(0.071f, 0.053f, 0.089f, 0.047f); private val fy = floatArrayOf(0.059f, 0.083f, 0.041f, 0.067f)
-    private val ph = floatArrayOf(0f, 2.1f, 4.2f, 1.3f); private val blinkT = floatArrayOf(2.4f, 3.1f, 2.7f, 3.6f)
+    private val fx = floatArrayOf(0.17f, 0.13f, 0.21f, 0.11f); private val fy = floatArrayOf(0.14f, 0.19f, 0.10f, 0.16f)
+    private val ph = floatArrayOf(0f, 2.1f, 4.2f, 1.3f); private val blinkT = floatArrayOf(0.9f, 1.2f, 1.05f, 1.4f)
 
     /** Цвет «по кругу палитры» в момент [time] со сдвигом [k] — для волны и кольца кнопки. */
     fun colorAt(k: Float): Int {
         val pal = palette; val n = pal.size
-        val x = ((time / 3.5f + k) % n + n) % n
+        val x = ((time / 1.6f + k) % n + n) % n
         val i = x.toInt(); var f = x - i; f = f * f * (3 - 2 * f)
         val a = FloatArray(3); val b = FloatArray(3)
         android.graphics.Color.colorToHSV(pal[i], a); android.graphics.Color.colorToHSV(pal[(i + 1) % n], b)
@@ -107,7 +107,7 @@ class Backdrop(ctx: Context) : Drawable() {
             val bx = w * (0.5f + 0.62f * Math.sin((time * fx[k] * 6.283f + ph[k]).toDouble()).toFloat())
             val by = h * (0.5f + 0.6f * Math.sin((time * fy[k] * 6.283f + ph[k] * 1.7f).toDouble()).toFloat())
             val blink = 0.5f + 0.5f * Math.sin((time / blinkT[k] * 6.283f + ph[k]).toDouble()).toFloat()
-            val al = ((0.2f + 0.38f * blink) * (1f + beat * 0.9f)).coerceAtMost(1f)
+            val al = ((0.14f + 0.6f * blink) * (0.75f + lv * 0.9f) * (1f + beat * 1.4f)).coerceAtMost(1f)
             m.setTranslate(bx, by); blobShaders[k]!!.setLocalMatrix(m)
             blob.shader = blobShaders[k]; blob.alpha = (al * 255).toInt()
             c.drawCircle(bx, by, br, blob)

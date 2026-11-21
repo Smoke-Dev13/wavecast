@@ -116,15 +116,15 @@ class PulseButton(ctx: Context) : View(ctx) {
         onLevel?.invoke((smooth + flash * 0.7f).coerceAtMost(1f))
         avgLv += (smooth - avgLv) * 0.05f
         val now = android.os.SystemClock.uptimeMillis()
-        if (live && smooth - avgLv > 0.07f && smooth > 0.12f && now - lastBeat > 220) { lastBeat = now; onBeat?.invoke() }
-        if (live || reveal > 0f) phase += 0.05f + smooth * 0.14f
+        if (live && smooth - avgLv > 0.05f && smooth > 0.08f && now - lastBeat > 160) { lastBeat = now; onBeat?.invoke() }
+        if (live || reveal > 0f) phase += 0.07f + smooth * 0.2f
 
         // волна: к краям затихает, амплитуда растёт с громкостью (и на миг — от вспышки)
         val amp = height * 0.34f
         fun waveY(x: Float, base: Float, lv: Float): Float {
             val t = x / w
             val edge = Math.sin(Math.PI * t).toFloat()
-            return cy + (Math.sin(t * 18.0 + phase) * Math.sin(t * 5.3 - phase * 0.4 + 1.0)).toFloat() * (base + lv * 0.93f) * amp * edge
+            return cy + (Math.sin(t * 18.0 + phase) * Math.sin(t * 5.3 - phase * 0.4 + 1.0)).toFloat() * minOf(1.15f, base + lv * 1.25f) * amp * edge
         }
         val step = 3 * dp
         if (reveal < 1f) {                                   // в покое — тусклая почти ровная линия

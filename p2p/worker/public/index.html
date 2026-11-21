@@ -201,22 +201,22 @@
   @media (prefers-reduced-motion: reduce) { .pill.live, .stage::before, .stage::after { animation: none !important; } }
 
   /* ===== Живой неон: 4 цвета обложки плывут пятнами из угла в угол, мигают и вспыхивают в такт ===== */
-  .aurora { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; transition: filter .25s ease-out; }
+  .aurora { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; transition: filter .22s ease-out, transform .22s ease-out; }
   .aurora i { position: absolute; left: -38vmax; top: -38vmax; width: 76vmax; height: 76vmax; border-radius: 50%;
          background: radial-gradient(circle, var(--c) 0, color-mix(in srgb, var(--c) 55%, transparent) 22%, transparent 58%);
          mix-blend-mode: screen; opacity: .5; will-change: transform, opacity; }
-  .aurora i:nth-child(1) { --c: var(--neon); animation: fl1 14s ease-in-out infinite alternate, blink 2.4s ease-in-out infinite; }
-  .aurora i:nth-child(2) { --c: var(--glow); animation: fl2 17s ease-in-out infinite alternate, blink 3.1s ease-in-out -1.2s infinite; }
-  .aurora i:nth-child(3) { --c: var(--c3); animation: fl3 12s ease-in-out infinite alternate, blink 2.7s ease-in-out -.6s infinite; }
-  .aurora i:nth-child(4) { --c: var(--c4); animation: fl4 19s ease-in-out infinite alternate, blink 3.6s ease-in-out -2s infinite; }
+  .aurora i:nth-child(1) { --c: var(--neon); animation: fl1 6s ease-in-out infinite alternate, blink .9s ease-in-out infinite; }
+  .aurora i:nth-child(2) { --c: var(--glow); animation: fl2 7.5s ease-in-out infinite alternate, blink 1.2s ease-in-out -.5s infinite; }
+  .aurora i:nth-child(3) { --c: var(--c3); animation: fl3 5s ease-in-out infinite alternate, blink 1.05s ease-in-out -.3s infinite; }
+  .aurora i:nth-child(4) { --c: var(--c4); animation: fl4 8s ease-in-out infinite alternate, blink 1.4s ease-in-out -.8s infinite; }
   /* каждое пятно идёт своим путём через углы экрана */
   @keyframes fl1 { 0% { transform: translate(0, 0); } 33% { transform: translate(100vw, 35vh); } 66% { transform: translate(40vw, 100vh); } 100% { transform: translate(90vw, 90vh); } }
   @keyframes fl2 { 0% { transform: translate(100vw, 0); } 40% { transform: translate(10vw, 55vh); } 75% { transform: translate(80vw, 100vh); } 100% { transform: translate(0, 85vh); } }
   @keyframes fl3 { 0% { transform: translate(50vw, 100vh); } 35% { transform: translate(0, 20vh); } 70% { transform: translate(100vw, 10vh); } 100% { transform: translate(60vw, 45vh); } }
   @keyframes fl4 { 0% { transform: translate(0, 100vh); } 30% { transform: translate(70vw, 60vh); } 65% { transform: translate(95vw, 0); } 100% { transform: translate(20vw, 30vh); } }
-  @keyframes blink { 0%, 100% { opacity: .22; } 45% { opacity: .6; } 55% { opacity: .45; } }
+  @keyframes blink { 0%, 100% { opacity: .14; } 40% { opacity: .78; } 55% { opacity: .5; } }
   /* вспышка на сильной доле: всё разом ярче */
-  body.beat .aurora { filter: brightness(1.8) saturate(1.25); transition: filter .05s; }
+  body.beat .aurora { filter: brightness(2.3) saturate(1.45); transform: scale(1.06); transition: filter .04s, transform .04s; }
   body.beat .stage::before, body.beat .stage::after { filter: blur(60px) brightness(1.6); }
   @media (prefers-reduced-motion: reduce) { .aurora i { animation: none !important; } .aurora i:nth-child(2) { transform: translate(100vw, 100vh); } body.beat .aurora { filter: none; } }
   /* --- главная и «не найдено» --- */
@@ -313,10 +313,10 @@
     const g = cv.getContext('2d'), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const host = cv.parentElement, N = 96, lvl = new Float32Array(N);
     let phase = 0, glow = 0, dash = 0, tick = 0, neonB = '#00E5FF', neonA = '#FF2BD6', avg = 0, lastBeat = 0;
-    const t0 = performance.now();
+    const t0 = performance.now(), aur = document.querySelector('.aurora');
     // цвет волны плавно переливается по палитре обложки (window.__pal — оттенки в градусах)
     const hueAt = (k) => {
-      const pal = window.__pal || [318, 186, 268, 222], n = pal.length, x = ((performance.now() - t0) / 3500 + k) % n;
+      const pal = window.__pal || [318, 186, 268, 222], n = pal.length, x = ((performance.now() - t0) / 1600 + k) % n;
       const i = Math.floor(x), f = x - i, a = pal[i], b = pal[(i + 1) % n];
       let d = ((b - a + 540) % 360) - 180; return (a + d * (f * f * (3 - 2 * f)) + 360) % 360;
     };
@@ -333,12 +333,13 @@
       const loud = sum / N;
       glow += (loud - glow) * 0.1;
       host.style.setProperty('--lv', glow.toFixed(3));
-      if (!still) phase += 0.05 + loud * 0.12;
+      if (aur && !still) aur.style.opacity = (0.65 + loud * 1.4).toFixed(2);        // фон дышит громкостью
+      if (!still) phase += 0.07 + loud * 0.2;
       if (!still) { neonA = `hsl(${hueAt(0).toFixed(1)} 100% 55%)`; neonB = `hsl(${hueAt(1.5).toFixed(1)} 100% 55%)`; }
       // вспышка на сильной доле: громкость резко выше средней
       avg += (loud - avg) * 0.05;
       const now = performance.now();
-      if (!still && data && loud - avg > 0.07 && loud > 0.12 && now - lastBeat > 220) {
+      if (!still && data && loud - avg > 0.05 && loud > 0.08 && now - lastBeat > 160) {
         lastBeat = now; document.body.classList.add('beat'); setTimeout(() => document.body.classList.remove('beat'), 110);
       }
       g.clearRect(0, 0, w, h);
@@ -355,7 +356,7 @@
         for (let x = 0; x <= w; x += 3 * dpr) {
           const i = Math.min(N - 1, Math.floor(x / w * N));
           const edge = Math.sin(Math.PI * x / w);                  // к краям волна затихает
-          const a = (a0 != null ? a0 : 0.06 + lvl[i] * 0.94) * amp * edge;
+          const a = (a0 != null ? a0 : Math.min(1.15, 0.06 + lvl[i] * 1.25)) * amp * edge;
           const y = mid + Math.sin(x / w * 18 + phase) * a * Math.sin(x / w * 5.3 - phase * 0.4 + 1);
           x ? g.lineTo(x, y) : g.moveTo(x, y);
         }

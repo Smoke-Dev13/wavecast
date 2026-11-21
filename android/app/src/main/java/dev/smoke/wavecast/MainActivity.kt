@@ -100,7 +100,7 @@ class MainActivity : Activity() {
     private val motion = android.animation.TimeAnimator().apply {
         setTimeListener { _, total, _ ->
             if (android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f) return@setTimeListener
-            backdrop.beat = (backdrop.beat - 0.09f).coerceAtLeast(0f)
+            backdrop.beat = (backdrop.beat - 0.07f).coerceAtLeast(0f)
             backdrop.time = total / 1000f
             btn.neonA = backdrop.colorAt(0f); btn.neonB = backdrop.colorAt(1.5f)
         }
