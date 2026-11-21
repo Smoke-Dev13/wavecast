@@ -220,7 +220,7 @@ RING_JS
   function tint(src) {
     const my = ++tintSeq;                                      // цвет только от последней обложки
     const set = c => { if (my === tintSeq) document.documentElement.style.setProperty('--glow', c); };
-    if (!src) return set('#8C79E0');
+    if (!src) return set('#00E5FF');
     const img = new Image();
     img.onload = () => {
       try {
@@ -236,10 +236,10 @@ RING_JS
           if (w <= 0) continue;
           x += Math.cos(h) * w; y += Math.sin(h) * w; ws += w; sw += s * w;
         }
-        if (ws < 6) return set('#8C79E0');                                   // почти серая обложка
-        const hue = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360, sat = Math.min(68, Math.max(45, sw / ws * 85));
-        set(`hsl(${hue.toFixed(0)} ${sat.toFixed(0)}% 54%)`);
-      } catch { set('#8C79E0'); }
+        if (ws < 6) return set('#00E5FF');                                   // почти серая обложка
+        const hue = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+        set(`hsl(${hue.toFixed(0)} 100% 55%)`);                    // неон: полная насыщенность
+      } catch { set('#00E5FF'); }
     };
     img.src = src;
   }

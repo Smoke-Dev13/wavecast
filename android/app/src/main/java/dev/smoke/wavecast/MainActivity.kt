@@ -177,8 +177,10 @@ class MainActivity : Activity() {
         btn.live = on
         tvCaption.visibility = if (on) View.GONE else View.VISIBLE
         tvLive.text = if (on) "В ЭФИРЕ" else "НЕ В ЭФИРЕ"
-        tvLive.setTextColor(if (on) Ui.MILK else Ui.DIM)
-        tvLive.setCompoundDrawablesRelativeWithIntrinsicBounds(dot(if (on) Ui.CORAL else Ui.DIM), null, null, null)
+        tvLive.setTextColor(if (on) Ui.VOLT else Ui.DIM)
+        tvLive.setCompoundDrawablesRelativeWithIntrinsicBounds(dot(if (on) Ui.VOLT else Ui.DIM), null, null, null)
+        tvLive.background = if (on) GradientDrawable().apply { setColor(0x33F7F04A); cornerRadius = px(99).toFloat(); setStroke(px(1), Ui.VOLT) } else glass(99)
+        tvLive.setShadowLayer(if (on) px(8).toFloat() else 0f, 0f, 0f, Ui.VOLT)
 
         if (tvRoom.text.toString() != s.room) { tvRoom.text = s.room; fitOneLine(tvRoom) }
         tvRoom.isClickable = !on
@@ -197,7 +199,13 @@ class MainActivity : Activity() {
             val to = Backdrop.glowFrom(art)
             tintAnim?.cancel()
             tintAnim = android.animation.ValueAnimator.ofArgb(backdrop.glowColor, to).apply {
-                duration = 2200; addUpdateListener { backdrop.glowColor = it.animatedValue as Int }; start()
+                duration = 2200
+                addUpdateListener {
+                    val c = it.animatedValue as Int
+                    backdrop.glowColor = c; btn.neonB = c
+                    tvNow.setShadowLayer(px(10).toFloat(), 0f, 0f, c)
+                }
+                start()
             }
         }
         npCard.visibility = if (!on && s.showNowPlaying && !NowPlaying.allowed(this)) View.VISIBLE else View.GONE
@@ -218,7 +226,7 @@ class MainActivity : Activity() {
         renderPeople(if (on) st.p2pPeople + st.wifiPeople else emptyList())
         btnChat.visibility = if (on) View.VISIBLE else View.GONE
         btnChat.text = if (st.chatUnread > 0) "Чат эфира +${st.chatUnread}" else "Чат эфира"
-        btnChat.background = if (st.chatUnread > 0) shape(Ui.LILAC, 99) else glass(99)
+        btnChat.background = if (st.chatUnread > 0) shape(Ui.GLOW, 99) else glass(99)
         btnChat.setTextColor(if (st.chatUnread > 0) Ui.INK else Ui.MILK)
 
         val total = st.p2pListeners + st.localListeners
@@ -263,7 +271,7 @@ class MainActivity : Activity() {
 
         // шапка: марка, статус эфира, настройки
         val head = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        head.addView(label("WAVECAST", 18f, Ui.MILK, Ui.tech).apply { letterSpacing = 0.08f },
+        head.addView(label("WAVECAST", 18f, Ui.MILK, Ui.tech).apply { letterSpacing = 0.08f; setShadowLayer(px(6).toFloat(), px(1).toFloat(), 0f, Ui.NEON) },
             LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         tvLive = label("НЕ В ЭФИРЕ", 12f, Ui.DIM, Ui.tech).apply {
             letterSpacing = 0.06f
@@ -298,6 +306,7 @@ class MainActivity : Activity() {
         root.addView(label("Частота", 13f, Ui.DIM), wide(26))
         // название эфира всегда одной строкой: шрифт уменьшается, пока не влезет (слово не рвётся)
         tvRoom = label("", 28f, Ui.MILK, Ui.tech).apply {
+            setShadowLayer(px(9).toFloat(), px(1).toFloat(), 0f, Ui.NEON)
             maxLines = 1; isSingleLine = true; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, px(4), 0, px(4))
             setOnClickListener { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
             addOnLayoutChangeListener { v, l, _, r, _, ol, _, or_, _ -> if (r - l != or_ - ol) fitOneLine(v as TextView) }
@@ -364,6 +373,7 @@ class MainActivity : Activity() {
         nowRow.addView(ivNow, LinearLayout.LayoutParams(px(58), px(58)).apply { marginEnd = px(14) })
         val nowText = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         tvNow = label("", 24f, Ui.MILK, Ui.light).apply {
+            setShadowLayer(px(10).toFloat(), 0f, 0f, Ui.GLOW)                  // название светится, как неоновая вывеска
             maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; letterSpacing = -0.03f; setLineSpacing(0f, 1.05f)
         }
         nowText.addView(tvNow)

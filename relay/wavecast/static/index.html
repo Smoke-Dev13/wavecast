@@ -12,11 +12,11 @@
   :root { --uv: #191627; --ink: #0F0D1A; --lemon: #BFB0F5; --gum: #F0A08C; --milk: #EFEAE2; --mint: #2A2640; --dim: #9C96B0;
           --display: "Unbounded", "Arial Black", "Segoe UI Black", system-ui, sans-serif;
           --body: "Onest", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-          --tech: "Jura", "Onest", system-ui, sans-serif; --night: #110E1C; --glow: #8C79E0; --lv: 0;
+          --tech: "Jura", "Onest", system-ui, sans-serif; --night: #07040F; --glow: #00E5FF; --neon: #FF2BD6; --volt: #F7F04A; --lv: 0;
           --glass: rgba(42,38,64,.42); --edge: rgba(239,234,226,.14); }
   * { box-sizing: border-box; }
   /* цвет свечения плавно перетекает при смене обложки */
-  @property --glow { syntax: "<color>"; inherits: true; initial-value: #8C79E0; }
+  @property --glow { syntax: "<color>"; inherits: true; initial-value: #00E5FF; }
   html { background: var(--night); transition: --glow 2.2s ease; }
   body { margin: 0; min-height: 100vh; min-height: 100dvh; color: var(--milk); font: 400 16px/1.45 var(--body);
          background: var(--night); display: flex; justify-content: center; position: relative; }
@@ -160,6 +160,42 @@
   .sticker:active { transform: scale(.96); }
   .meta { font-size: 13px; text-align: right; color: var(--dim); line-height: 1.5; }
   @media (prefers-reduced-motion: reduce) { .pill.live i, .stage::before, body[data-mode="knock"] .stage::before { animation: none; } #btn, .sticker { transition: none; } }
+
+  /* ===== Киберпанк: два неоновых сияния, неоновая волна, глитч, сканлайны ===== */
+  body::before { background-image: linear-gradient(rgba(0,229,255,.10) 1px, transparent 1px), linear-gradient(90deg, rgba(255,43,214,.10) 1px, transparent 1px); }
+  /* сканлайны поверх всего, как на старом экране */
+  body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 30;
+         background: repeating-linear-gradient(0deg, rgba(0,0,0,.2) 0, rgba(0,0,0,.2) 1px, transparent 1px, transparent 3px); }
+  .brand { text-shadow: -1.5px 0 var(--glow), 1.5px 0 var(--neon), 0 0 14px rgba(255,43,214,.55); }
+  h1 { text-shadow: -2px 0 var(--glow), 2px 0 var(--neon), 0 0 18px rgba(255,43,214,.5); }
+  .pill.live { color: var(--volt); border-color: var(--volt); box-shadow: 0 0 12px rgba(247,240,74,.5), inset 0 0 8px rgba(247,240,74,.25); animation: flick 4s linear infinite; }
+  .pill.live i { background: var(--volt); }
+  @keyframes flick { 0%, 96%, 100% { opacity: 1; } 97% { opacity: .55; } 98% { opacity: 1; } 99% { opacity: .7; } }
+  /* малиновое сияние слева — постоянное, второе (бирюза или цвет обложки) справа */
+  .stage::before { width: 260px; height: 300px; left: 36%; background: var(--neon); filter: blur(70px); mix-blend-mode: screen;
+         animation: neonA 3s ease-in-out infinite; }
+  .stage::after { content: ""; position: absolute; left: 64%; top: 52%; width: 260px; height: 280px; border-radius: 50%; pointer-events: none;
+         background: var(--glow); filter: blur(70px); mix-blend-mode: screen; z-index: 0;
+         transform: translate(-50%, -50%) scale(calc(.92 + var(--lv) * .25)); opacity: calc(.75 + var(--lv) * .25);
+         animation: neonB 3s ease-in-out -1.5s infinite; }
+  @keyframes neonA { 50% { filter: blur(80px); opacity: 1; } }
+  @keyframes neonB { 50% { filter: blur(80px); } }
+  .stage canvas, #btn { z-index: 1; }
+  body[data-mode="knock"] .stage::before, body[data-mode="knock"] .stage::after { animation: knock 1.6s ease-in-out infinite; }
+  body[data-mode="nosig"] .stage::before { background: var(--neon); opacity: .22; transform: translate(-50%, -50%) scale(.5); }
+  body[data-mode="nosig"] .stage::after { opacity: .12; transform: translate(-50%, -50%) scale(.4); animation: none; }
+  #btn { border: 2px solid var(--neon); background: rgba(7,4,15,.72); color: #EFFBFF;
+         box-shadow: 0 0 18px var(--neon), 0 0 46px rgba(255,43,214,.55), inset 0 0 22px rgba(255,43,214,.45); }
+  #btn svg { filter: drop-shadow(0 0 6px var(--neon)); }
+  #btn.on { background: rgba(7,4,15,.72); }
+  #btn:disabled { border-color: var(--edge); box-shadow: none; }
+  #btn:disabled svg { filter: none; }
+  .now .t { color: #EFFBFF; text-shadow: 0 0 4px var(--glow), 0 0 12px var(--glow), 0 0 26px var(--glow); }
+  .br::before, .br::after { border-color: var(--glow); filter: drop-shadow(0 0 4px var(--glow)); }
+  #rxBtn { border-color: var(--glow); box-shadow: 0 0 12px color-mix(in srgb, var(--glow) 55%, transparent); }
+  #chatBtn { border-color: var(--volt); box-shadow: 0 0 12px rgba(247,240,74,.5); }
+  .sticker { border-color: var(--glow); box-shadow: 0 0 12px color-mix(in srgb, var(--glow) 45%, transparent); }
+  @media (prefers-reduced-motion: reduce) { .pill.live, .stage::before, .stage::after { animation: none !important; } }
 </style>
 </head>
 <body>
@@ -264,7 +300,8 @@
   function ring(cv, getData) {
     const g = cv.getContext('2d'), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const host = cv.parentElement, N = 96, lvl = new Float32Array(N);
-    let phase = 0, glow = 0, dash = 0;
+    let phase = 0, glow = 0, dash = 0, tick = 0, neonB = '#00E5FF';
+    const neonA = '#FF2BD6';
     function frame() {
       const dpr = Math.min(devicePixelRatio || 1, 2), w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
@@ -279,13 +316,14 @@
       glow += (loud - glow) * 0.1;
       host.style.setProperty('--lv', glow.toFixed(3));
       if (!still) phase += 0.05 + loud * 0.12;
+      if (tick++ % 20 === 0) neonB = getComputedStyle(document.documentElement).getPropertyValue('--glow').trim() || neonB;
       g.clearRect(0, 0, w, h);
       g.strokeStyle = '#EFEAE2'; g.lineJoin = 'round'; g.lineCap = 'round';
       if (mode === 'nosig') {
         const lg = g.createLinearGradient(0, 0, w, 0);
         lg.addColorStop(0, 'rgba(239,234,226,0)'); lg.addColorStop(.5, 'rgba(239,234,226,.55)'); lg.addColorStop(1, 'rgba(239,234,226,0)');
         g.strokeStyle = lg; g.lineWidth = 1.4 * dpr; g.beginPath(); g.moveTo(0, mid); g.lineTo(w, mid); g.stroke();
-        g.fillStyle = '#F0A08C'; g.beginPath(); g.arc(w / 2, mid, 3 * dpr, 0, Math.PI * 2); g.fill();
+        g.fillStyle = neonA; g.shadowColor = neonA; g.shadowBlur = 10 * dpr; g.beginPath(); g.arc(w / 2, mid, 3 * dpr, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0;
         return requestAnimationFrame(frame);
       }
       const path = (a0) => {
@@ -301,12 +339,14 @@
       if (mode === 'knock') {
         if (!still) dash -= 0.6 * dpr;
         g.setLineDash([6 * dpr, 14 * dpr]); g.lineDashOffset = dash;
-        path(0.3); g.globalAlpha = 0.8; g.lineWidth = 1.6 * dpr; g.stroke();
+        path(0.3); g.strokeStyle = neonB; g.shadowColor = neonB; g.shadowBlur = 10 * dpr; g.globalAlpha = 0.95; g.lineWidth = 2 * dpr; g.stroke(); g.shadowBlur = 0;
         g.setLineDash([]); g.globalAlpha = 1;
         return requestAnimationFrame(frame);
       }
-      path(); g.globalAlpha = 0.3; g.lineWidth = 6 * dpr; g.shadowColor = '#EFEAE2'; g.shadowBlur = 12 * dpr; g.stroke();
-      path(); g.globalAlpha = 0.95; g.lineWidth = 1.4 * dpr; g.shadowBlur = 0; g.stroke();
+      // неоновая трубка: малиновая «тень» со сдвигом, ореол второго неона, белая сердцевина
+      g.save(); g.translate(0, 4 * dpr); path(); g.strokeStyle = neonA; g.globalAlpha = 0.55; g.lineWidth = 8 * dpr; g.shadowColor = neonA; g.shadowBlur = 18 * dpr; g.stroke(); g.restore();
+      path(); g.strokeStyle = neonB; g.globalAlpha = 0.85; g.lineWidth = 6 * dpr; g.shadowColor = neonB; g.shadowBlur = 16 * dpr; g.stroke();
+      path(); g.strokeStyle = '#EFFBFF'; g.globalAlpha = 1; g.lineWidth = 1.8 * dpr; g.shadowBlur = 6 * dpr; g.stroke(); g.shadowBlur = 0;
       g.globalAlpha = 1;
       requestAnimationFrame(frame);
     }

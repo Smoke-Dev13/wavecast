@@ -18,18 +18,23 @@ import android.widget.TextView
 
 /** Общие цвета и элементы интерфейса для всех экранов. */
 object Ui {
-    val BG = Color.parseColor("#110E1C")
-    val INK = Color.parseColor("#0F0D1A")
-    val LILAC = Color.parseColor("#BFB0F5")
+    val BG = Color.parseColor("#07040F")
+    val INK = Color.parseColor("#07040F")
+    /** Основной неон (киберпанк): малиновый — кнопки и акценты. */
+    val LILAC = Color.parseColor("#FF2BD6")
+    val NEON = LILAC
+    /** Жёлтая метка «в эфире». */
+    val VOLT = Color.parseColor("#F7F04A")
     val CORAL = Color.parseColor("#F0A08C")
     val MILK = Color.parseColor("#EFEAE2")
     val PANEL = Color.parseColor("#231F36")
     /** Полупрозрачное «стекло» поверх свечения и тонкая светлая кромка. */
-    val GLASS = Color.parseColor("#8C2A2640")
+    val GLASS = Color.parseColor("#A6140C24")
     val EDGE = Color.parseColor("#26EFEAE2")
-    val GLOW = Color.parseColor("#8C79E0")
-    val BRACKET = Color.parseColor("#CCBFB0F5")
-    val DIM = Color.parseColor("#9C96B0")
+    /** Второй неон: бирюзовый, в эфире — цвет обложки. */
+    val GLOW = Color.parseColor("#00E5FF")
+    val BRACKET = Color.parseColor("#E600E5FF")
+    val DIM = Color.parseColor("#B0A2DC")
 
     /** Фирменные шрифты (как на странице слушателя), лежат в assets/fonts. */
     lateinit var display: Typeface; private set

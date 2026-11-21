@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
@@ -70,12 +71,24 @@ class PulseButton(ctx: Context) : View(ctx) {
     private val caption = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Ui.MILK; textSize = 11 * dp; textAlign = Paint.Align.CENTER; letterSpacing = 0.12f
     }
+    /** Второй неон волны: бирюзовый, в эфире — цвет обложки (его задаёт главный экран). */
+    var neonB = Ui.GLOW
+        set(v) { field = v; waveGlow.color = v; waveGlow.alpha = 220 }
+    // неоновая трубка: малиновая «тень» со сдвигом, ореол второго неона, белая сердцевина
+    private val waveShadow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE; strokeWidth = 8 * dp; color = Ui.NEON; alpha = 150
+        strokeJoin = Paint.Join.ROUND; maskFilter = BlurMaskFilter(9 * dp, BlurMaskFilter.Blur.NORMAL)
+    }
     private val waveGlow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE; strokeWidth = 6 * dp; color = Ui.MILK; alpha = 70
-        strokeJoin = Paint.Join.ROUND; maskFilter = BlurMaskFilter(6 * dp, BlurMaskFilter.Blur.NORMAL)
+        style = Paint.Style.STROKE; strokeWidth = 6 * dp; color = Ui.GLOW; alpha = 220
+        strokeJoin = Paint.Join.ROUND; maskFilter = BlurMaskFilter(8 * dp, BlurMaskFilter.Blur.NORMAL)
+    }
+    private val neonRing = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE; strokeWidth = 8 * dp; color = Ui.NEON; alpha = 200
+        maskFilter = BlurMaskFilter(12 * dp, BlurMaskFilter.Blur.NORMAL)
     }
     private val waveLine = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE; strokeWidth = 1.4f * dp; color = Ui.MILK; alpha = 240; strokeJoin = Paint.Join.ROUND
+        style = Paint.Style.STROKE; strokeWidth = 1.8f * dp; color = Color.parseColor("#EFFBFF"); alpha = 250; strokeJoin = Paint.Join.ROUND
     }
     private val wave = Path()
     private val tri = Path()
@@ -115,6 +128,7 @@ class PulseButton(ctx: Context) : View(ctx) {
             while (x <= w) { val y = waveY(x, 0.07f, lv); if (x == 0f) wave.moveTo(x, y) else wave.lineTo(x, y); x += step }
             val half = reveal * w / 2f
             c.save(); c.clipRect(cx - half, 0f, cx + half, height.toFloat())
+            c.save(); c.translate(0f, 4 * dp); c.drawPath(wave, waveShadow); c.restore()
             c.drawPath(wave, waveGlow); c.drawPath(wave, waveLine)
             c.restore()
             if (reveal < 1f) {                               // яркие точки на концах бегущего луча
@@ -126,16 +140,17 @@ class PulseButton(ctx: Context) : View(ctx) {
 
         val r = radius * press
         if (flash > 0.01f) {                                 // кольцо расходится от кнопки
-            ring.color = Ui.MILK; ring.alpha = (flash * 140).toInt()
+            ring.color = neonB; ring.alpha = (flash * 220).toInt()
             c.drawCircle(cx, cy, r * (1.05f + (1f - flash) * 0.7f), ring)
         }
         if (live) {
-            fill.color = 0xE62A2442.toInt()
+            // неоновое кольцо: размытый ореол + чёткая линия, внутри тёмное стекло
+            c.drawCircle(cx, cy, r, neonRing)
+            fill.color = 0xE007040F.toInt()
             c.drawCircle(cx, cy, r, fill)
-            fill.color = 0x1FEFEAE2
-            c.drawCircle(cx, cy, r, fill)
-            ring.color = 0x61EFEAE2
+            ring.color = Ui.NEON; ring.strokeWidth = 2 * dp
             c.drawCircle(cx, cy, r, ring)
+            ring.strokeWidth = maxOf(1f, dp)
             icon.color = Ui.MILK
             val h = r * 0.17f
             rect.set(cx - h, cy - h - r * 0.08f, cx + h, cy + h - r * 0.08f)
@@ -143,7 +158,8 @@ class PulseButton(ctx: Context) : View(ctx) {
             caption.typeface = Ui.tech
             c.drawText("СТОП", cx, cy + r * 0.38f, caption)
         } else {
-            fill.color = Ui.LILAC
+            c.drawCircle(cx, cy, r, neonRing)
+            fill.color = Ui.NEON
             c.drawCircle(cx, cy, r, fill)
             icon.color = Ui.INK
             val h = r * 0.24f

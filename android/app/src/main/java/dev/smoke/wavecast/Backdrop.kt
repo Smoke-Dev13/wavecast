@@ -10,14 +10,18 @@ import android.graphics.Shader
 import android.graphics.drawable.Drawable
 
 /**
- * Фон «свечение × осциллограф»: ночной цвет, мягкое сиреневое свечение
+ * Фон в стиле киберпанк: ночной цвет, два неоновых сияния (малиновое и бирюзовое/из обложки), сканлайны
  * и сетка, которая видна у свечения и растворяется к краям.
  * [glowY] — центр свечения (px от верха), [lv] — громкость 0..1: свечение разгорается.
  */
 class Backdrop(ctx: Context) : Drawable() {
     private val dp = ctx.resources.displayMetrics.density
-    private val grid = Paint().apply { color = 0x0FBFB0F5; strokeWidth = maxOf(1f, dp * 0.6f) }
-    private val glow = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val gridH = Paint().apply { color = 0x1A00E5FF; strokeWidth = maxOf(1f, dp * 0.6f) }
+    private val gridV = Paint().apply { color = 0x1AFF2BD6; strokeWidth = maxOf(1f, dp * 0.6f) }
+    private val scan = Paint().apply { color = 0x30000000; strokeWidth = maxOf(1f, dp * 0.5f) }
+    private val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.ADD) }
+    private val glowA = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.ADD) }
+    private var glowAKey: Triple<Int, Int, Int>? = null
     private val fade = Paint(Paint.ANTI_ALIAS_FLAG)
     private var glowKey: Triple<Int, Int, Int>? = null
     private var fadeKey: Triple<Int, Int, Int>? = null
@@ -35,23 +39,33 @@ class Backdrop(ctx: Context) : Drawable() {
         val cx = w / 2f; val cy = if (glowY >= 0) glowY else h * 0.4f
         // свечение: радиальный градиент вместо размытия, чтобы не нагружать отрисовку
         val q = (lv * 40).toInt() / 40f                       // ступеньки громкости: глазу незаметно, градиент реже
-        val r = 230 * dp * (0.95f + q * 0.2f)
-        val a = (0.62f + q * 0.3f).coerceAtMost(1f)
+        val r = 200 * dp * (0.95f + q * 0.2f)
+        val a = (0.85f + q * 0.15f).coerceAtMost(1f)
         val core = (glowColor and 0xFFFFFF) or ((a * 255).toInt() shl 24)
         val mid = (glowColor and 0xFFFFFF) or ((a * 110).toInt() shl 24)
+        // киберпанк: малиновый неон слева (постоянный) + второй неон справа (бирюза или цвет обложки), складываются
         // градиенты пересоздаём только когда что-то поменялось, а не каждый кадр
-        val key = Triple(cx.toInt() * 31 + cy.toInt(), (r / dp).toInt(), core)
-        if (key != glowKey) { glowKey = key; glow.shader = RadialGradient(cx, cy, r, intArrayOf(core, mid, 0), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP) }
-        c.drawCircle(cx, cy, r, glow)
-        // сетка 26dp
+        val ax = cx - 62 * dp; val bx = cx + 58 * dp; val by = cy + 10 * dp
+        val ra = 200 * dp * (0.97f + q * 0.1f)
+        val ka = Triple(ax.toInt() * 31 + cy.toInt(), (ra / dp).toInt(), 0)
+        if (ka != glowAKey) { glowAKey = ka
+            glowA.shader = RadialGradient(ax, cy, ra, intArrayOf(0xF2FF2BD6.toInt(), 0x66FF2BD6, 0), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP) }
+        c.drawCircle(ax, cy, ra, glowA)
+        val key = Triple(bx.toInt() * 31 + by.toInt(), (r / dp).toInt(), core)
+        if (key != glowKey) { glowKey = key; glow.shader = RadialGradient(bx, by, r, intArrayOf(core, mid, 0), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP) }
+        c.drawCircle(bx, by, r, glow)
+        // сетка 26dp: горизонтали бирюзовые, вертикали малиновые
         val step = 26 * dp
-        var x = (cx % step); while (x < w) { c.drawLine(x, 0f, x, h, grid); x += step }
-        var y = (cy % step); while (y < h) { c.drawLine(0f, y, w, y, grid); y += step }
+        var x = (cx % step); while (x < w) { c.drawLine(x, 0f, x, h, gridV); x += step }
+        var y = (cy % step); while (y < h) { c.drawLine(0f, y, w, y, gridH); y += step }
         // к краям сетка растворяется в ночном фоне
         val fr = maxOf(w, h) * 0.62f
         val fk = Triple(cx.toInt(), cy.toInt(), fr.toInt())
         if (fk != fadeKey) { fadeKey = fk; fade.shader = RadialGradient(cx, cy, fr, intArrayOf(0, 0, Ui.BG), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP) }
         c.drawRect(0f, 0f, w, h, fade)
+        // сканлайны, как на старом экране
+        val sStep = 3 * dp
+        var sy = 0f; while (sy < h) { c.drawLine(0f, sy, w, sy, scan); sy += sStep }
     }
 
     override fun setAlpha(alpha: Int) {}
@@ -77,8 +91,7 @@ class Backdrop(ctx: Context) : Drawable() {
                 if (s !== bmp) s.recycle()
                 if (ws < 6) return Ui.GLOW                                      // почти серая обложка
                 val hue = ((Math.toDegrees(Math.atan2(y, x)) + 360) % 360).toFloat()
-                val sat = (sw / ws * 0.85).coerceIn(0.45, 0.68).toFloat()
-                hslToColor(hue, sat, 0.54f)
+                hslToColor(hue, 1f, 0.55f)                                       // неон: полная насыщенность
             } catch (e: Exception) { Ui.GLOW }
         }
 

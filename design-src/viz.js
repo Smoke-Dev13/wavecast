@@ -5,7 +5,8 @@
   function ring(cv, getData) {
     const g = cv.getContext('2d'), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const host = cv.parentElement, N = 96, lvl = new Float32Array(N);
-    let phase = 0, glow = 0, dash = 0;
+    let phase = 0, glow = 0, dash = 0, tick = 0, neonB = '#00E5FF';
+    const neonA = '#FF2BD6';
     function frame() {
       const dpr = Math.min(devicePixelRatio || 1, 2), w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
@@ -20,13 +21,14 @@
       glow += (loud - glow) * 0.1;
       host.style.setProperty('--lv', glow.toFixed(3));
       if (!still) phase += 0.05 + loud * 0.12;
+      if (tick++ % 20 === 0) neonB = getComputedStyle(document.documentElement).getPropertyValue('--glow').trim() || neonB;
       g.clearRect(0, 0, w, h);
       g.strokeStyle = '#EFEAE2'; g.lineJoin = 'round'; g.lineCap = 'round';
       if (mode === 'nosig') {
         const lg = g.createLinearGradient(0, 0, w, 0);
         lg.addColorStop(0, 'rgba(239,234,226,0)'); lg.addColorStop(.5, 'rgba(239,234,226,.55)'); lg.addColorStop(1, 'rgba(239,234,226,0)');
         g.strokeStyle = lg; g.lineWidth = 1.4 * dpr; g.beginPath(); g.moveTo(0, mid); g.lineTo(w, mid); g.stroke();
-        g.fillStyle = '#F0A08C'; g.beginPath(); g.arc(w / 2, mid, 3 * dpr, 0, Math.PI * 2); g.fill();
+        g.fillStyle = neonA; g.shadowColor = neonA; g.shadowBlur = 10 * dpr; g.beginPath(); g.arc(w / 2, mid, 3 * dpr, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0;
         return requestAnimationFrame(frame);
       }
       const path = (a0) => {
@@ -42,12 +44,14 @@
       if (mode === 'knock') {
         if (!still) dash -= 0.6 * dpr;
         g.setLineDash([6 * dpr, 14 * dpr]); g.lineDashOffset = dash;
-        path(0.3); g.globalAlpha = 0.8; g.lineWidth = 1.6 * dpr; g.stroke();
+        path(0.3); g.strokeStyle = neonB; g.shadowColor = neonB; g.shadowBlur = 10 * dpr; g.globalAlpha = 0.95; g.lineWidth = 2 * dpr; g.stroke(); g.shadowBlur = 0;
         g.setLineDash([]); g.globalAlpha = 1;
         return requestAnimationFrame(frame);
       }
-      path(); g.globalAlpha = 0.3; g.lineWidth = 6 * dpr; g.shadowColor = '#EFEAE2'; g.shadowBlur = 12 * dpr; g.stroke();
-      path(); g.globalAlpha = 0.95; g.lineWidth = 1.4 * dpr; g.shadowBlur = 0; g.stroke();
+      // неоновая трубка: малиновая «тень» со сдвигом, ореол второго неона, белая сердцевина
+      g.save(); g.translate(0, 4 * dpr); path(); g.strokeStyle = neonA; g.globalAlpha = 0.55; g.lineWidth = 8 * dpr; g.shadowColor = neonA; g.shadowBlur = 18 * dpr; g.stroke(); g.restore();
+      path(); g.strokeStyle = neonB; g.globalAlpha = 0.85; g.lineWidth = 6 * dpr; g.shadowColor = neonB; g.shadowBlur = 16 * dpr; g.stroke();
+      path(); g.strokeStyle = '#EFFBFF'; g.globalAlpha = 1; g.lineWidth = 1.8 * dpr; g.shadowBlur = 6 * dpr; g.stroke(); g.shadowBlur = 0;
       g.globalAlpha = 1;
       requestAnimationFrame(frame);
     }
