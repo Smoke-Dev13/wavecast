@@ -278,6 +278,44 @@
          padding: 5px 8px; background: rgba(7,4,15,.6); border: 1px solid color-mix(in srgb, var(--volt) 70%, transparent); }
   html.clipmode { transition: --glow .6s linear, --neon .6s linear, --c3 .6s linear, --c4 .6s linear; }
   html.clipmode .now img { display: none !important; }           /* картинка уже в клипе */
+
+  /* ===== Страница слушателя — как главный экран приложения ===== */
+  .freq { margin: 28px 0 4px; }
+  .freq .lbl { display: block; font: 500 13px/1.2 var(--body); color: var(--dim); margin-bottom: 4px; }
+  .freq h1 { margin: 0; font: 700 clamp(26px, 8vw, 34px)/1.1 var(--tech); letter-spacing: .01em; text-align: left; }
+  .freq #state { margin-top: 6px; min-height: 20px; font: 500 14px/1.35 var(--body); }
+  #hint { font: 700 13px/1.3 var(--tech); letter-spacing: .1em; text-transform: uppercase; color: var(--milk); margin: -6px 0 18px; }
+  body[data-mode] #hint { text-transform: none; letter-spacing: 0; color: var(--dim); }
+  /* что играет: без карточки, обложка в скобах, крупное тонкое название со свечением */
+  .now { background: none; border: 0; padding: 0; margin: 4px 0 18px; -webkit-backdrop-filter: none; backdrop-filter: none; gap: 14px; }
+  .now .cv { flex: none; width: 58px; height: 58px; padding: 1px; background: var(--glass); border: 1px solid var(--edge); }
+  .now .cv img { width: 100%; height: 100%; border-radius: 0; display: block; }
+  .now .t { font: 300 24px/1.08 var(--display); letter-spacing: -.03em; }
+  .now .a { margin-top: 5px; font: 400 15px/1.3 var(--body); }
+  .now .genre { margin: 0 0 0 10px; padding: 0; border: 0; box-shadow: none; display: inline; font: 700 12px/1 var(--tech); letter-spacing: .1em; }
+  /* плитки: слушают / реакций / сообщений */
+  .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 16px; }
+  .tiles[hidden] { display: none; }
+  .tile { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; background: var(--glass); border: 1px solid var(--edge); border-radius: 4px;
+          -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+  .tile b { font: 700 24px/1 var(--tech); color: var(--milk); }
+  .tile span { font: 400 12px/1.2 var(--body); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* широкие кнопки-пилюли, как «ЧАТ ЭФИРА» в приложении */
+  button.wide { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 54px; margin: 14px 0 0;
+          border-radius: 99px; border: 1px solid var(--edge); background: var(--glass); color: var(--milk); cursor: pointer;
+          font: 700 15px/1 var(--tech); letter-spacing: .08em; text-transform: uppercase; -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+  button.wide:active { transform: scale(.98); }
+  #chatBtn.wide { width: 100%; height: 54px; border-radius: 99px; font-size: 15px; box-shadow: none; border-color: var(--edge); }
+  #chatBtn.wide:has(.badge:not([hidden])) { background: var(--glow); color: #07040F; border-color: var(--glow); box-shadow: 0 0 18px color-mix(in srgb, var(--glow) 55%, transparent); }
+  #chatBtn.wide .badge { position: static; background: #07040F; color: var(--glow); }
+  /* «Позови друзей» */
+  .invite { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; padding: 16px; border-radius: 22px; background: var(--glass);
+          border: 1px solid var(--edge); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+  .invite b { font: 700 18px/1.2 var(--body); color: var(--milk); }
+  .invite .url { font: 700 15px/1.3 var(--body); color: var(--neon); overflow-wrap: anywhere; }
+  .invite .meta { text-align: left; font-size: 13px; }
+  .invite .meta:empty { display: none; }
+  .invite button.wide { margin-top: 8px; }
   /* --- главная и «не найдено» --- */
   main.site { width: min(100%, 560px); padding: 20px 24px 40px; overflow-x: clip; }
   .site header { margin-bottom: 8px; }
