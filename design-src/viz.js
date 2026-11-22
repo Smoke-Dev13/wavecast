@@ -33,6 +33,7 @@
       if (aur && !still) aur.style.opacity = (0.65 + loud * 1.4).toFixed(2);        // фон дышит громкостью
       if (!still) phase += 0.07 + loud * 0.2;
       if (!still) { neonA = `hsl(${hueAt(0).toFixed(1)} ${slAt(0)})`; neonB = `hsl(${hueAt(1.5).toFixed(1)} ${slAt(1.5)})`; }
+      host.style.setProperty('--btn', neonA);                        // кнопка переливается вместе с волной, как в приложении
       // вспышка на сильной доле: громкость резко выше средней
       avg += (loud - avg) * 0.05;
       const now = performance.now();
@@ -68,6 +69,11 @@
         return requestAnimationFrame(frame);
       }
       // неоновая трубка: малиновая «тень» со сдвигом, ореол второго неона, белая сердцевина
+      // звука нет (ещё не слушаем) — как в приложении: тусклая почти ровная линия, без неона
+      if (!data || loud < 0.01) {
+        path(0.035); g.strokeStyle = '#EFFBFF'; g.globalAlpha = 0.43; g.lineWidth = 1.4 * dpr; g.shadowBlur = 0; g.stroke(); g.globalAlpha = 1;
+        return requestAnimationFrame(frame);
+      }
       g.save(); g.translate(0, 4 * dpr); path(); g.strokeStyle = neonA; g.globalAlpha = 0.55; g.lineWidth = 8 * dpr; g.shadowColor = neonA; g.shadowBlur = 18 * dpr; g.stroke(); g.restore();
       const fat = { street: 1.8, dark: 1.4, calm: 0.7 }[document.body.dataset.theme] || 1;
       path(); g.strokeStyle = neonB; g.globalAlpha = 0.85; g.lineWidth = 6 * fat * dpr; g.shadowColor = neonB; g.shadowBlur = 16 * dpr; g.stroke();

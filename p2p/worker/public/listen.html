@@ -316,6 +316,25 @@
   .invite .meta { text-align: left; font-size: 13px; }
   .invite .meta:empty { display: none; }
   .invite button.wide { margin-top: 8px; }
+
+  /* ===== Точь-в-точь как главный экран приложения ===== */
+  /* надписи без «глитча»: белые с мягкой подсветкой первого неона, как в приложении */
+  .brand { font: 700 18px/1 var(--tech); letter-spacing: .08em; text-shadow: 1px 0 6px var(--neon); }
+  .freq h1, body[data-theme] .freq h1 { font: 700 30px/1.1 var(--tech); letter-spacing: .02em; text-shadow: 1px 0 9px var(--neon); }
+  .freq #state { font: 400 13px/1.35 var(--body); }
+  /* метка эфира: заглавными, «НЕ В ЭФИРЕ» / «В ЭФИРЕ» */
+  .pill { font: 700 12px/1 var(--tech); letter-spacing: .06em; text-transform: uppercase; padding: 10px 14px; }
+  /* сканлайны — только по фону, под кнопками и текстом */
+  body::after { z-index: 0; background: repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0, rgba(0,0,0,.14) 1px, transparent 1px, transparent 3px); }
+  /* кнопка: до эфира — залита неоном с тёмным ▶, в эфире — тёмное стекло с неоновым кольцом и ■ */
+  #btn { width: 140px; }
+  #btn:not(.on):not(:disabled) { background: var(--btn, var(--neon)); color: #07040F; border-color: var(--btn, var(--neon));
+         box-shadow: 0 0 24px color-mix(in srgb, var(--btn, var(--neon)) 70%, transparent), 0 0 60px color-mix(in srgb, var(--btn, var(--neon)) 35%, transparent); }
+  #btn.on { border-color: var(--btn, var(--neon)); box-shadow: 0 0 18px var(--btn, var(--neon)), 0 0 46px color-mix(in srgb, var(--btn, var(--neon)) 55%, transparent), inset 0 0 22px color-mix(in srgb, var(--btn, var(--neon)) 45%, transparent); }
+  #btn:not(.on) svg { filter: none; }
+  #btn .play { width: 34%; height: 34%; margin-left: 5%; }
+  #btn .stop { width: 24%; height: 24%; }
+  #hint { font: 700 15px/1.3 var(--tech); letter-spacing: .1em; margin: -2px 0 20px; }
 </style>
 </head>
 <body>
@@ -428,6 +447,7 @@
       if (aur && !still) aur.style.opacity = (0.65 + loud * 1.4).toFixed(2);        // фон дышит громкостью
       if (!still) phase += 0.07 + loud * 0.2;
       if (!still) { neonA = `hsl(${hueAt(0).toFixed(1)} ${slAt(0)})`; neonB = `hsl(${hueAt(1.5).toFixed(1)} ${slAt(1.5)})`; }
+      host.style.setProperty('--btn', neonA);                        // кнопка переливается вместе с волной, как в приложении
       // вспышка на сильной доле: громкость резко выше средней
       avg += (loud - avg) * 0.05;
       const now = performance.now();
@@ -463,6 +483,11 @@
         return requestAnimationFrame(frame);
       }
       // неоновая трубка: малиновая «тень» со сдвигом, ореол второго неона, белая сердцевина
+      // звука нет (ещё не слушаем) — как в приложении: тусклая почти ровная линия, без неона
+      if (!data || loud < 0.01) {
+        path(0.035); g.strokeStyle = '#EFFBFF'; g.globalAlpha = 0.43; g.lineWidth = 1.4 * dpr; g.shadowBlur = 0; g.stroke(); g.globalAlpha = 1;
+        return requestAnimationFrame(frame);
+      }
       g.save(); g.translate(0, 4 * dpr); path(); g.strokeStyle = neonA; g.globalAlpha = 0.55; g.lineWidth = 8 * dpr; g.shadowColor = neonA; g.shadowBlur = 18 * dpr; g.stroke(); g.restore();
       const fat = { street: 1.8, dark: 1.4, calm: 0.7 }[document.body.dataset.theme] || 1;
       path(); g.strokeStyle = neonB; g.globalAlpha = 0.85; g.lineWidth = 6 * fat * dpr; g.shadowColor = neonB; g.shadowBlur = 16 * dpr; g.stroke();
