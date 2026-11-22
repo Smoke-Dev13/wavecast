@@ -74,7 +74,7 @@
   #btn:focus-visible, .sticker:focus-visible, input:focus-visible { outline: 2px solid var(--milk); outline-offset: 4px; }
   .who input:focus-visible { outline-offset: 2px; }
   #btn svg { width: 30%; height: 30%; }
-  #btn .play { margin-left: 6%; }
+  #btn .play { margin-left: 0; }                 /* ▶ по центру: центр тяжести треугольника уже в середине значка */
   #btn .stop { display: none; }
   #btn.on { background: rgba(239,234,226,.12); }
   #btn.on .play { display: none; } #btn.on .stop { display: block; }
@@ -332,9 +332,11 @@
          box-shadow: 0 0 24px color-mix(in srgb, var(--btn, var(--neon)) 70%, transparent), 0 0 60px color-mix(in srgb, var(--btn, var(--neon)) 35%, transparent); }
   #btn.on { border-color: var(--btn, var(--neon)); box-shadow: 0 0 18px var(--btn, var(--neon)), 0 0 46px color-mix(in srgb, var(--btn, var(--neon)) 55%, transparent), inset 0 0 22px color-mix(in srgb, var(--btn, var(--neon)) 45%, transparent); }
   #btn:not(.on) svg { filter: none; }
-  #btn .play { width: 34%; height: 34%; margin-left: 5%; }
+  #btn .play { width: 34%; height: 34%; margin-left: 0; display: block; }
   #btn .stop { width: 24%; height: 24%; }
   #hint { font: 700 15px/1.3 var(--tech); letter-spacing: .1em; margin: -2px 0 20px; }
+  /* значки строго по центру круга (без влияния строк текста внутри кнопки) */
+  #btn svg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; }
 </style>
 </head>
 <body>
