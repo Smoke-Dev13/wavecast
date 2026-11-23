@@ -1,8 +1,8 @@
 {
-  "versionCode": 31,
-  "versionName": "0.17.0",
-  "url": "wavecast.apk?v=31",
-  "sha256": "5cb77b17c48daa99ac3b159aa69ae5d9235622570f391f4b052b279836451935",
-  "size": 1303899,
-  "notes": "Клип в эфир и подсветка по кадру"
+  "versionCode": 32,
+  "versionName": "0.17.1",
+  "url": "wavecast.apk?v=32",
+  "sha256": "07307173fa52730f0868457872339ee388f36222632e0298c50bacac56478045",
+  "size": 1295707,
+  "notes": "Клипы убраны"
 }

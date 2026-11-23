@@ -25,16 +25,6 @@ class Settings(ctx: Context) {
         get() = p.getBoolean("showNowPlaying", true)
         set(v) = p.edit().putBoolean("showNowPlaying", v).apply()
 
-    /** Показывать друзьям клип с экрана, пока открыт видеоплеер (нужен «Доступ к истории использования»). */
-    var showClips: Boolean
-        get() = p.getBoolean("showClips", true)
-        set(v) = p.edit().putBoolean("showClips", v).apply()
-
-    /** Ведущий уже ответил на предложение показывать клипы. */
-    var clipsAsked: Boolean
-        get() = p.getBoolean("clipsAsked", false)
-        set(v) = p.edit().putBoolean("clipsAsked", v).apply()
-
     /** Ведущий уже ответил на предложение «Покажи друзьям, что играет». */
     var nowPlayingAsked: Boolean
         get() = p.getBoolean("nowPlayingAsked", false)

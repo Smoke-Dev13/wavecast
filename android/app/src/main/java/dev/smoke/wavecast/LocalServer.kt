@@ -79,18 +79,8 @@ class LocalServer(
     }
 
     override fun audio(chunk: ByteArray) {
-        clients.forEach { if (it.approved && !it.video) it.binary(chunk) }
+        clients.forEach { if (it.approved) it.binary(chunk) }
     }
-
-    /** Кадр клипа (JPEG) — только странице P2P-ведущего, по отдельному внутреннему каналу /vid. */
-    fun videoFrame(jpeg: ByteArray) = clients.forEach { if (it.video) it.frameLatest(jpeg) }
-
-    /** Клип начался/кончился: страница включает или убирает видеодорожку у слушателей. */
-    /** Подсветка по кадру клипа: [[оттенок, насыщенность %, светлота %] ×4] — странице, она раздаёт слушателям. */
-    fun videoPalette(json: String) = clients.forEach { if (it.video) it.text("""{"pal":$json}""") }
-
-    @Volatile var videoOn = false
-    fun videoState(on: Boolean) { videoOn = on; clients.forEach { if (it.video) it.text("""{"video":$on}""") } }
 
     /** Кто сейчас слушает: (id, имя). */
     fun people(): List<Pair<String, String>> = clients.filter { it.approved && !it.internal }.map { it.id to it.name }
@@ -214,9 +204,6 @@ class LocalServer(
             when {
                 path == "/ws" && wsKey != null -> upgrade(sock, input, out, wsKey,
                     sock.inetAddress.isLoopbackAddress && token == internalToken)
-                // кадры клипа: только для своей страницы на этом же телефоне
-                path == "/vid" && wsKey != null && sock.inetAddress.isLoopbackAddress && token == internalToken ->
-                    upgrade(sock, input, out, wsKey, internal = true, video = true)
                 path == "/" || path == "/index.html" -> {
                     val body = assets.open("index.html").use { it.readBytes() }
                     respond(out, "200 OK", "text/html; charset=utf-8", body); sock.close()
@@ -243,20 +230,18 @@ class LocalServer(
         out.flush()
     }
 
-    private fun upgrade(sock: Socket, input: InputStream, out: OutputStream, key: String, internal: Boolean, video: Boolean = false) {
+    private fun upgrade(sock: Socket, input: InputStream, out: OutputStream, key: String, internal: Boolean) {
         val accept = Base64.getEncoder().encodeToString(
             MessageDigest.getInstance("SHA-1").digest((key + WS_GUID).toByteArray())
         )
         out.write(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n" +
                 "Sec-WebSocket-Accept: $accept\r\n\r\n").toByteArray())
         out.flush()
-        val c = Client(sock, out, internal, "w" + nextId.incrementAndGet(), video)
+        val c = Client(sock, out, internal, "w" + nextId.incrementAndGet())
         c.approved = internal
         clients.add(c)
-        if (!video) {
-            c.text(statusJson())
-            if (internal) formatMsg?.let { c.text(it) }
-        } else c.text("""{"video":${videoOn}}""")
+        c.text(statusJson())
+        if (internal) formatMsg?.let { c.text(it) }
         try {
             // Читаем входящие кадры только чтобы поймать close/ping
             while (running) {
@@ -285,7 +270,7 @@ class LocalServer(
         }
     }
 
-    private class Client(private val sock: Socket, private val out: OutputStream, val internal: Boolean, val id: String, val video: Boolean = false) {
+    private class Client(private val sock: Socket, private val out: OutputStream, val internal: Boolean, val id: String) {
         @Volatile var approved = false
         @Volatile var pendingName: String? = null
         @Volatile var cid: String = id
@@ -312,8 +297,6 @@ class LocalServer(
             frame(0x2, b)
         }
         fun frame(op: Int, data: ByteArray) { if (alive) q.offer(op to data) }
-        /** Видео: держим только свежий кадр, старые выкидываем. */
-        fun frameLatest(b: ByteArray) { while (q.size > 1) q.poll(); frame(0x2, b) }
 
         /** Закрыть после отправки всего, что уже в очереди. */
         fun finish() { if (alive) q.offer(-1 to ByteArray(0)) }

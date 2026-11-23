@@ -170,7 +170,7 @@ class Backdrop(ctx: Context) : Drawable() {
             } catch (e: Exception) { def }
         }
 
-        internal fun androidx_hsl(r: Int, g: Int, b: Int, out: FloatArray) {
+        private fun androidx_hsl(r: Int, g: Int, b: Int, out: FloatArray) {
             val rf = r / 255f; val gf = g / 255f; val bf = b / 255f
             val mx = maxOf(rf, gf, bf); val mn = minOf(rf, gf, bf); val d = mx - mn
             val l = (mx + mn) / 2f

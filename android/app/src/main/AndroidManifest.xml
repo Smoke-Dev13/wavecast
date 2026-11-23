@@ -11,8 +11,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <!-- установка обновлений WaveCast (только самого себя, система всё равно спрашивает пользователя) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <!-- «Доступ к истории использования»: понять, что на экране видеоплеер, и только тогда показывать друзьям клип -->
-    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
 
     <!-- Android 11+: чтобы найти установленные мессенджеры и не пускать их звук в эфир -->
     <queries>
