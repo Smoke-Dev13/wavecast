@@ -94,15 +94,18 @@ class MainActivity : Activity() {
         CaptureService.reactionListener = { name, e -> floatReaction(name, e) }
         render(CaptureService.status)
         periodicCheck.run()                        // при каждом возврате и потом раз в 5 минут, пока экран открыт
+        // «без анимации» в системе проверяем раз при открытии экрана, а не каждый кадр
+        animOff = android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
         lastTotal = 0L; motion.start()
     }
 
     // живой неон: пока экран открыт, пятна фона плывут, волна и кольцо переливаются по палитре обложки
     private var animTime = 0f
+    private var animOff = false
     private var lastTotal = 0L
     private val motion = android.animation.TimeAnimator().apply {
         setTimeListener { _, total, _ ->
-            if (android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f) return@setTimeListener
+            if (animOff) return@setTimeListener
             backdrop.beat = (backdrop.beat - 0.07f).coerceAtLeast(0f)
             animTime += (total - lastTotal) / 1000f / backdrop.look.mv      // темп — по жанру
             lastTotal = total

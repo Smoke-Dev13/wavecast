@@ -42,6 +42,8 @@ object Genre {
     // приписки, которые YouTube и плееры добавляют к названию: (Official Live Video), [Lyrics], (Remastered 2011)…
     private val junk = Regex("""\s*[(\[][^)\]]*(official|video|audio|lyric|visuali[sz]er|remaster|live|\bhd\b|4k|mv|клип|премьер|текст)[^)\]]*[)\]]""", RegexOption.IGNORE_CASE)
     private val feat = Regex("""\s+[(\[]?(ft\.|feat\.|featuring|prod\.)\s.*$""", RegexOption.IGNORE_CASE)
+    // приписка после дефиса у Spotify и др.: «- Remastered 2011», «- Live», «- Radio Edit», «- 2019 Remaster», «- Acoustic Version»…
+    private val suffix = Regex("""(?i)((\d{4}\s+)?(re-?master(ed)?|live|radio edit|edit|single version|album version|version|mix|remix|mono|stereo|demo|acoustic|instrumental|extended|bonus track|deluxe|original mix|from .*|feat\..*|ft\..*|live at .*|live from .*|\d{4})(\s+(\d{4}|version|edit|mix|remaster(ed)?))*)""")
     private val channel = Regex("""\s*(-\s*topic|vevo|official|music|records|tv)$""", RegexOption.IGNORE_CASE)
 
     /**
@@ -52,8 +54,10 @@ object Genre {
         var t = title.replace(junk, "").replace(feat, "").trim()
         var a = (artist ?: "").replace(channel, "").trim()
         val parts = t.split(" - ", " – ", " — ", limit = 2)
-        // в названии «Исполнитель - Песня»: исполнитель отсюда точнее, чем название канала или лейбла
-        if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) { a = parts[0].trim(); t = parts[1].trim() }
+        if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
+            if (suffix.matches(parts[1].trim())) t = parts[0].trim()   // «Песня - Remastered 2011» (Spotify): это приписка, исполнитель не трогаем
+            else { a = parts[0].trim(); t = parts[1].trim() }          // «Исполнитель - Песня» (YouTube): исполнитель отсюда точнее, чем канал или лейбл
+        }
         return a.take(120) to t.ifBlank { title }.take(120)
     }
 

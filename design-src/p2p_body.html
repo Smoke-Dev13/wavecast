@@ -227,78 +227,10 @@ RING_JS
     if (d.type === 'react' && EMOJI.includes(d.e)) float(d.e, d.name);
   }
 
-  // неон в цвет обложки: два главных оттенка картинки на полной яркости.
-  // Одноцветная обложка — второй неон соседним оттенком; серая или без обложки — малиновый с бирюзовым
-  let tintSeq = 0;
-  // палитра [[оттенок, насыщенность, светлота] ×4] → CSS-переменные и window.__pal (по ней переливается волна)
-  function palette(cs) {
-    const r = document.documentElement.style, names = ['--neon', '--glow', '--c3', '--c4'];
-    cs.forEach(([h, s, l], i) => r.setProperty(names[i], `hsl(${h} ${s}% ${l}%)`));
-    window.__pal = cs.map(c => c[0]); window.__palSL = cs.map(c => [c[1], c[2]]);
-  }
-  function tint(src) {
-    const my = ++tintSeq;                                      // цвета только от последней обложки
-    // палитра из 4 оттенков: --neon, --glow, --c3, --c4 (CSS) и window.__pal (волна переливается по ней)
-    const set = hs => { if (my === tintSeq) palette(hs.map(h => [h, 100, 55])); };
-    const def = () => set([318, 186, 268, 222]);
-    if (!src) return def();
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const n = 16, cv = document.createElement('canvas'); cv.width = cv.height = n;
-        const g = cv.getContext('2d'); g.drawImage(img, 0, 0, n, n);
-        const d = g.getImageData(0, 0, n, n).data, bins = new Float32Array(24); let total = 0;
-        for (let i = 0; i < d.length; i += 4) {
-          const r = d[i] / 255, gg = d[i + 1] / 255, b = d[i + 2] / 255, mx = Math.max(r, gg, b), mn = Math.min(r, gg, b), l = (mx + mn) / 2, c = mx - mn;
-          if (c < .08) continue;
-          const s = c / (1 - Math.abs(2 * l - 1) || 1);
-          let h = mx === r ? ((gg - b) / c) % 6 : mx === gg ? (b - r) / c + 2 : (r - gg) / c + 4; h = (h * 60 + 360) % 360;
-          const w = s * (1 - Math.abs(l - .5) * 1.6);
-          if (w <= 0) continue;
-          bins[Math.floor(h / 15) % 24] += w; total += w;
-        }
-        if (total < 6) return def();                                       // почти серая обложка
-        const sm = i => bins[(i + 23) % 24] * .5 + bins[i] + bins[(i + 1) % 24] * .5;   // сглаживаем соседей
-        let a = 0; for (let i = 1; i < 24; i++) if (sm(i) > sm(a)) a = i;
-        // до 4 цветов: заметные оттенки не ближе 45° друг к другу; не хватает — соседние к главному
-        const pick = [a];
-        for (const i of [...Array(24).keys()].sort((x, y) => sm(y) - sm(x))) {
-          if (pick.length >= 4 || sm(i) < sm(a) * .15) break;
-          if (pick.every(j => Math.min(Math.abs(i - j), 24 - Math.abs(i - j)) >= 3)) pick.push(i);
-        }
-        const hs = pick.map(i => i * 15 + 7.5);
-        for (const d of [40, -40, 80]) if (hs.length < 4) hs.push((hs[0] + d + 360) % 360);
-        set(hs);
-      } catch { def(); }
-    };
-    img.src = src;
-  }
-
-  // тема по жанру (присылает ведущий): меняет характер движения, вспышек и волны
-  // цвета под музыку: у каждой темы своя палитра (обложка — только если жанр не определился)
-  const PALETTES = {
-    club:   [[186, 100, 55], [312, 100, 55], [228, 100, 55], [95, 100, 55]],    // кислотный клуб
-    street: [[45, 100, 52], [280, 100, 55], [0, 100, 50], [200, 100, 55]],      // золото, фиолет, красный, синий
-    rock:   [[5, 100, 50], [24, 100, 55], [350, 100, 45], [40, 100, 55]],       // огонь
-    dark:   [[0, 100, 36], [345, 100, 30], [275, 90, 30], [14, 100, 42]],       // метал/дум: кровь, бордо, тёмный фиолет, угли
-    pop:    [[330, 100, 62], [195, 100, 60], [55, 100, 60], [285, 100, 65]],    // конфеты
-    night:  [[275, 100, 50], [315, 100, 50], [235, 100, 50], [345, 100, 55]],   // R&B: ночные неоны
-    calm:   [[175, 70, 50], [210, 70, 55], [260, 60, 60], [150, 60, 50]],       // море, небо, лаванда
-    warm:   [[35, 100, 55], [22, 100, 55], [48, 100, 55], [12, 90, 50]],        // костёр
-  };
-  const THEMES = Object.keys(PALETTES);
-  function theme(t) {
-    const id = t && THEMES.includes(t.theme) ? t.theme : '';
-    if (id) document.body.dataset.theme = id; else delete document.body.dataset.theme;
-    const g = $('genre'); g.hidden = !id; g.textContent = id ? String(t.genre || '').slice(0, 24) : '';
-  }
-
+LOOK_JS
   function showTrack(t) {
     $('now').style.display = t ? 'flex' : 'none';
-    theme(t);
-    const th = document.body.dataset.theme;
-    // цвета под музыку: по жанру; жанр не найден — фирменный неон (кадр клипа даёт случайные цвета)
-    tintSeq++; palette(th ? PALETTES[th] : [[318, 100, 55], [186, 100, 55], [268, 100, 55], [222, 100, 55]]);
+    look(t);
     if (!t) { document.title = room + ' — WaveCast'; if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: room, artist: 'WaveCast' }); return; }
     $('title').textContent = $('title').title = t.title;
     $('artist').textContent = $('artist').title = t.artist || '';

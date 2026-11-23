@@ -1,8 +1,8 @@
 {
-  "versionCode": 32,
-  "versionName": "0.17.1",
-  "url": "wavecast.apk?v=32",
-  "sha256": "07307173fa52730f0868457872339ee388f36222632e0298c50bacac56478045",
-  "size": 1295707,
-  "notes": "Клипы убраны"
+  "versionCode": 33,
+  "versionName": "0.17.2",
+  "url": "wavecast.apk?v=33",
+  "sha256": "fd20c2b7e364bf7af5773990ec2d7f09caf5a066bbfc5a423930493125face51",
+  "size": 1299803,
+  "notes": "Исправления: названия из Spotify, страница Wi-Fi"
 }

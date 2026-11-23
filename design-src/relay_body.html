@@ -1,13 +1,13 @@
 </style>
 </head>
 <body>
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div class="tint" aria-hidden="true"></div>
 <main>
   <header>
-    <span class="brand">WaveCast</span>
+    <span class="brand">WAVECAST</span>
     <span class="pill" id="pill"><i></i><span id="cnt">не в эфире</span></span>
   </header>
-  <h1 id="room">эфир</h1>
-  <p id="state">подключаюсь…</p>
+  <div class="freq"><span class="lbl">Частота</span><h1 id="room">эфир</h1><p id="state">подключаюсь…</p></div>
   <div class="stage">
     <canvas id="viz"></canvas>
     <div class="floats" id="floats" aria-hidden="true"></div>
@@ -21,15 +21,20 @@
     <label for="name">Как тебя зовут? Ведущий увидит имя в запросе</label>
     <input id="name" maxlength="24" autocomplete="nickname" placeholder="Например, Аня">
   </div>
-  <div class="now br" id="now"><img id="cover" alt=""><a id="tlink" target="_blank" rel="noopener"><div class="t" id="title"></div><div class="a" id="artist"></div></a></div>
+  <div class="now" id="now"><span class="cv br"><img id="cover" alt=""></span><a id="tlink" target="_blank" rel="noopener"><div class="t" id="title"></div><div class="a"><span id="artist"></span><span class="genre" id="genre" hidden></span></div></a></div>
   <div class="dj" id="dj"></div>
+  <!-- плитки со скобами, как в приложении ведущего -->
+  <div class="tiles" id="tiles">
+    <div class="tile br"><b id="tListen">—</b><span id="tListenL">слушают</span></div>
+    <div class="tile br"><b id="tReact">0</b><span>реакций</span></div>
+    <div class="tile br"><b id="tMsg">0</b><span>сообщений</span></div>
+  </div>
   <div class="ctl">
     <label class="vol">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 4V5L7 9H3zm12.5 3a4 4 0 0 0-2-3.46v6.92a4 4 0 0 0 2-3.46z"/></svg>
       <input id="vol" type="range" min="0" max="1" step="0.01" value="1" aria-label="Громкость">
     </label>
     <div class="rx" id="reacts">
-      <button id="chatBtn" aria-label="Чат эфира">💬<span class="badge" id="chatBadge" hidden></span></button>
       <div class="rxw">
         <div class="stack" id="stack" role="menu" aria-label="Реакции"></div>
         <button id="rxBtn" aria-label="Реакции" aria-haspopup="menu" aria-expanded="false">😊</button>
@@ -40,9 +45,13 @@
     <input id="buf" type="range" min="80" max="1500" step="10" value="250" aria-label="Буфер">
     <output id="bufv">250 мс</output>
   </label>
-  <div class="foot">
-    <button class="sticker" id="share">Позвать друзей</button>
-    <div class="meta"><span id="fmt"></span><br>задержка <span id="lat">–</span><br>провалов <span id="und">0</span></div>
+  <button class="wide" id="chatBtn" aria-label="Чат эфира" style="display:none">ЧАТ ЭФИРА<span class="badge" id="chatBadge" hidden></span></button>
+  <!-- «Позови друзей» — как карточка в приложении -->
+  <div class="invite">
+    <b>Позови друзей</b>
+    <span class="url" id="url"></span>
+    <span class="meta"><span id="fmt"></span> · задержка <span id="lat">–</span> · провалов <span id="und">0</span></span>
+    <button class="wide" id="share">Поделиться</button>
   </div>
   <div class="viewer" id="viewer" hidden role="dialog" aria-label="Обложка"><img id="viewerImg" alt=""><div class="vt" id="viewerT"></div><div class="va" id="viewerA"></div></div>
   <div class="sheet" id="chat" hidden role="dialog" aria-label="Чат эфира">
@@ -96,14 +105,21 @@
   const join = () => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'join', name: $('name').value.trim().slice(0, 24) || 'Гость', cid })); };
 
 RING_JS
+LOOK_JS
+  // кнопка чата и реакции — только тем, кого пустили (или всем на relay-сервере, где не спрашивают)
+  const shown = on => { $('reacts').style.display = on ? 'flex' : 'none'; $('chatBtn').style.display = on ? '' : 'none'; };
   ring($('viz'), () => { if (!analyser || !playing) return null; analyser.getByteFrequencyData(bins); return bins; });
 
   const setState = (txt, err) => { $('state').textContent = txt; $('state').className = err ? 'err' : ''; };
   const plural = n => n + ' ' + (n % 10 === 1 && n % 100 !== 11 ? 'слушает' : 'слушают');
   function ui() {
     $('btn').className = playing ? 'on' : '';
-    $('btn').setAttribute('aria-label', playing ? 'Остановить' : 'Слушать');
-    $('hint').textContent = !playing ? 'Жми и слушай' : waiting ? 'Запрос отправлен' : live ? 'Звук идёт' : 'Жду эфир — заиграет само';
+    $('btn').setAttribute('aria-label', playing ? (waiting ? 'Отменить запрос' : 'Остановить') : 'Слушать');
+    $('hint').textContent = !playing ? (blocked ? 'Постучаться снова можно будет в следующем эфире. Если это ошибка — напиши ведущему.' : 'Жми и слушай')
+      : waiting ? 'Ведущий увидит твоё имя и пустит в эфир. Страницу можно не закрывать.' : live ? 'Звук идёт' : 'Жду эфир — заиграет само';
+    // «стучимся к ведущему» и «нет сигнала» — как на странице по ссылке
+    const mode = waiting && playing ? 'knock' : blocked && !playing ? 'nosig' : '';
+    if (mode) document.body.dataset.mode = mode; else delete document.body.dataset.mode;
   }
 
   async function opusSupported() {
@@ -131,11 +147,13 @@ RING_JS
         live = m.live;
         $('pill').className = 'pill' + (live ? ' live' : '');
         $('cnt').textContent = live ? plural(m.listeners) : 'не в эфире';
+        if (live) { $('tListen').textContent = m.listeners; $('tListenL').textContent = plural(m.listeners).split(' ')[1]; }
         if (!waiting && !blocked) setState(live ? (playing ? 'Ты в эфире' : 'Эфир идёт') : 'Эфир ещё не начался. Страница сама подключится.');
-        if (!live) { $('now').style.display = 'none'; Chat.reset(); }
+        if (!live) { $('now').style.display = 'none'; look(null); Chat.reset(); }
         ui();
         break;
       case 'track': {
+        look(m.title ? m : null);
         if (!m.title) { $('now').style.display = 'none'; document.title = (room || 'эфир') + ' — WaveCast'; break; }
         const okCover = /^(data:image\/(jpeg|png|webp);base64,|https:\/\/)/.test(m.cover || '');
         $('title').textContent = $('title').title = m.title || ''; $('artist').textContent = $('artist').title = m.artist || '';
@@ -148,27 +166,27 @@ RING_JS
       case 'react':
         if (EMOJI.includes(m.e)) float(m.e, m.name);
         break;
-      case 'chat': Chat.message(m); break;
-      case 'chat-history': Chat.history(m.items); break;
+      case 'chat': Chat.message(m); $('tMsg').textContent = +$('tMsg').textContent + 1; break;
+      case 'chat-history': Chat.history(m.items); $('tMsg').textContent = Array.isArray(m.items) ? m.items.length : 0; break;
       case 'kicked':
         waiting = false; asked = false; playing = false; blocked = true; if (ctx) ctx.suspend(); Chat.reset();
-        $('reacts').style.display = 'none'; $('now').style.display = 'none';
-        $('who').style.display = ''; setState('Ведущий отключил тебя от эфира', true); ui();
+        shown(false); $('now').style.display = 'none';
+        $('who').style.display = ''; setState('Ведущий отключил тебя'); ui();
         break;
       case 'dj':
         $('dj').textContent = m.text; $('dj').style.display = 'block';
         clearTimeout(onText.djt); onText.djt = setTimeout(() => $('dj').style.display = 'none', 20000);
         break;
       case 'waiting':
-        waiting = true; setState('Ждём, пока ведущий пустит…'); ui();
+        waiting = true; setState('Стучимся к ведущему…'); ui();
         break;
       case 'approved':
-        waiting = false; $('who').style.display = 'none'; $('reacts').style.display = 'flex';   // реакции — только у пущенных телефоном ведущего
+        waiting = false; $('who').style.display = 'none'; shown(true);   // реакции и чат — только у пущенных телефоном ведущего
         setState(playing ? 'Ты в эфире' : 'Эфир идёт'); ui();
         break;
       case 'denied':
         waiting = false; asked = false; playing = false; blocked = true; if (ctx) ctx.suspend(); Chat.reset();
-        $('who').style.display = ''; setState('Ведущий не пустил в эфир', true); ui();
+        $('who').style.display = ''; setState('Ведущий не пустил'); ui();
         break;
       case 'busy':
         waiting = false; asked = false; playing = false; if (ctx) ctx.suspend();
@@ -251,8 +269,9 @@ RING_JS
   $('share').onclick = async () => {
     const url = location.href;
     try { if (navigator.share) return await navigator.share({ title: 'WaveCast', text: 'Залетай в мой эфир', url }); } catch { return; }
-    try { await navigator.clipboard.writeText(url); $('share').textContent = 'Ссылка скопирована'; setTimeout(() => $('share').textContent = 'Позвать друзей', 2000); } catch { prompt('Ссылка:', url); }
+    try { await navigator.clipboard.writeText(url); $('share').textContent = 'Ссылка скопирована'; setTimeout(() => $('share').textContent = 'Поделиться', 2000); } catch { prompt('Ссылка:', url); }
   };
+  $('url').textContent = location.host + location.pathname;
 
   $('name').onkeydown = e => { if (e.key === 'Enter') $('btn').click(); };
 
@@ -262,6 +281,7 @@ RING_JS
     if (box.childElementCount > 24) return;
     const el = document.createElement('span');
     el.textContent = e;
+    $('tReact').textContent = +$('tReact').textContent + 1;
     if (name) { const n = document.createElement('small'); n.textContent = name.slice(0, 12); el.appendChild(n); }
     el.style.left = (15 + Math.random() * 62) + '%';
     el.addEventListener('animationend', () => el.remove());
