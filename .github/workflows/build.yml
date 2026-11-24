@@ -25,3 +25,11 @@ jobs:
         with:
           name: inferno3d-apk
           path: inferno3d.apk
+      - name: Commit APK to branch
+        run: |
+          mkdir -p dist && cp inferno3d.apk dist/inferno3d.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dist/inferno3d.apk
+          git commit -m "APK build ${{ github.run_number }} [skip ci]" || exit 0
+          git push
