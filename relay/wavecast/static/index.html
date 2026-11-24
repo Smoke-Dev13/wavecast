@@ -327,6 +327,63 @@
   #hint { font: 700 15px/1.3 var(--tech); letter-spacing: .1em; margin: -2px 0 20px; }
   /* значки строго по центру круга (без влияния строк текста внутри кнопки) */
   #btn svg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; }
+
+  /* ===== Глаза зверя в темноте (0.18) — как в приложении ===== */
+  :root { --night: #050302; --milk: #FFF4D6; --dim: #C9B89A; --ink: #120700; --volt: #FFD37A; --gum: #FF8A5A; --mint: #2A1E12;
+          --glass: rgba(20,12,6,.62); --edge: rgba(255,244,214,.14); --lemon: #FFD37A; }
+  @property --glow { syntax: "<color>"; inherits: true; initial-value: #C77700; }
+  @property --neon { syntax: "<color>"; inherits: true; initial-value: #F5B700; }
+  @property --c3 { syntax: "<color>"; inherits: true; initial-value: #8A3C00; }
+  @property --c4 { syntax: "<color>"; inherits: true; initial-value: #7FE3FF; }
+  html, body { background: radial-gradient(120% 70% at 50% 34%, #1A0E05 0, #070402 60%, #000 100%) fixed, #050302; }
+  body::before, body::after, .aurora { display: none !important; }
+  .br::before, .br::after { display: none; }
+  .eyes { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  .eyes b { position: absolute; width: 34px; height: 8px; opacity: 0; animation: eyeshine 10s ease-in-out infinite; }
+  .eyes b::before, .eyes b::after { content: ""; position: absolute; top: 0; width: 12px; height: 6px; border-radius: 50%;
+          background: var(--neon); box-shadow: 0 0 8px var(--neon), 0 0 18px var(--neon); }
+  .eyes b::before { left: 0; } .eyes b::after { right: 0; }
+  .eyes b.alt::before, .eyes b.alt::after { background: var(--c4); box-shadow: 0 0 8px var(--c4), 0 0 18px var(--c4); }
+  @keyframes eyeshine { 0%, 100% { opacity: 0; transform: scaleY(1); } 12%, 76% { opacity: calc(.75 + var(--lv) * .25); transform: scaleY(1); }
+          44% { transform: scaleY(1); } 45.5% { transform: scaleY(.1); } 47% { transform: scaleY(1); } 88% { opacity: 0; } }
+  body.beat .eyes b { filter: brightness(1.6); }
+  .brand { text-shadow: 0 0 14px var(--glow); }
+  .freq h1, body[data-theme] .freq h1, h1 { text-shadow: 0 0 18px color-mix(in srgb, var(--glow) 60%, transparent); }
+  .freq .lbl { color: var(--neon); font: 600 13px/1.2 var(--tech); letter-spacing: .14em; }
+  .pill.live { color: var(--neon); border-color: var(--edge); background: rgba(255,244,214,.06); box-shadow: none; animation: none; }
+  .pill.live i { background: var(--neon); box-shadow: 0 0 8px var(--neon); animation: blink 2s ease-in-out infinite; }
+  /* свечение за глазом */
+  .stage::before { left: 50%; width: 360px; height: 300px; background: var(--glow); filter: blur(80px); mix-blend-mode: normal;
+          opacity: calc(.38 + var(--lv) * .4); transform: translate(-50%, -50%) scale(calc(.95 + var(--lv) * .25)); animation: none; }
+  .stage::after { display: none; }
+  body.beat .stage::before { filter: blur(70px) brightness(1.5); }
+  body[data-mode="nosig"] .stage::before { opacity: .12; }
+  /* кнопка — прозрачная зона нажатия поверх нарисованного глаза */
+  #btn, #btn.on, #btn:not(.on):not(:disabled), #btn:disabled { width: min(78%, 300px); height: 150px; aspect-ratio: auto; border-radius: 50%;
+          background: transparent !important; border: 0; box-shadow: none !important; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  #btn svg { display: none !important; }
+  #hint { color: var(--neon); }
+  /* что играет и плитки: округлые, с бликом, как отражение в глазу */
+  .now .t { color: var(--milk); text-shadow: 0 0 14px color-mix(in srgb, var(--glow) 70%, transparent); }
+  .now .cv { border-radius: 14px; overflow: hidden; box-shadow: 0 0 22px color-mix(in srgb, var(--glow) 60%, transparent); }
+  .now .cv img { border-radius: 13px; }
+  .now .genre { color: var(--neon); }
+  .tile { position: relative; overflow: hidden; border-radius: 18px; }
+  .tile::before { content: ""; position: absolute; left: 8px; top: 5px; width: 34px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.16); filter: blur(2px); }
+  .tile b { color: var(--neon); text-shadow: 0 0 12px color-mix(in srgb, var(--glow) 70%, transparent); }
+  #rxBtn { border-color: var(--edge); box-shadow: none; }
+  #chatBtn { border-color: var(--edge); box-shadow: none; }
+  #chatBtn.wide:has(.badge:not([hidden])) { background: var(--neon); color: var(--ink); border-color: var(--neon); box-shadow: 0 0 22px color-mix(in srgb, var(--glow) 60%, transparent); }
+  #chatBtn.wide .badge { background: var(--ink); color: var(--neon); }
+  .sticker { border-color: var(--edge); box-shadow: none; }
+  .invite .url { color: var(--neon); }
+  #share, .invite button.wide { background: var(--neon); color: var(--ink); border-color: var(--neon); box-shadow: 0 0 24px color-mix(in srgb, var(--glow) 55%, transparent); }
+  input[type=range] { background: var(--mint); accent-color: var(--neon); }
+  input[type=range]::-webkit-slider-thumb { background: var(--neon); box-shadow: 0 0 10px var(--neon); }
+  input[type=range]::-moz-range-thumb { background: var(--neon); }
+  .sheet, .stack { background: #140C06; }
+  .msg.own { background: #3A2812; }
+  @media (prefers-reduced-motion: reduce) { .eyes b { animation: none; opacity: .6; } }
 </style>
 </head>
 <body>
@@ -433,118 +490,128 @@
   $('name').value = store('wc-name') || '';
   const join = () => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'join', name: $('name').value.trim().slice(0, 24) || 'Гость', cid })); };
 
-  // Волна осциллографа поперёк свечения: амплитуда идёт от спектра звука,
-  // громкость (--lv) раздувает свечение за кнопкой.
-  // body[data-mode=knock] — пунктирная бегущая волна (стучимся к ведущему),
-  // body[data-mode=nosig] — погасшая линия с точкой (не пустили)
+  // Глаз зверя вместо кнопки: как в приложении.
+  // Не слушаем — глаз дремлет (узкая щель), слушаем — открыт, взгляд гуляет,
+  // зрачок расширяется от громкости и дёргается на сильных долях, глаз иногда моргает.
+  // body[data-mode=knock] — глаз приоткрыт и ждёт (стучимся к ведущему),
+  // body[data-mode=nosig] — глаз закрыт и почти погас (не пустили)
   function ring(cv, getData) {
     const g = cv.getContext('2d'), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const host = cv.parentElement, N = 96, lvl = new Float32Array(N);
-    let phase = 0, glow = 0, dash = 0, tick = 0, neonB = '#00E5FF', neonA = '#FF2BD6', avg = 0, lastBeat = 0;
-    const t0 = performance.now(), aur = document.querySelector('.aurora');
-    // цвет волны плавно переливается по палитре обложки (window.__pal — оттенки в градусах)
-    const hueAt = (k) => {
-      const pal = window.__pal || [318, 186, 268, 222], n = pal.length, x = ((performance.now() - t0) / 1600 + k) % n;
-      const i = Math.floor(x), f = x - i, a = pal[i], b = pal[(i + 1) % n];
-      let d = ((b - a + 540) % 360) - 180; return (a + d * (f * f * (3 - 2 * f)) + 360) % 360;
+    const host = cv.parentElement, btn = document.getElementById('btn');
+    let lv = 0, avg = 0, lastBeat = 0, open = 0.16, bp = 0, blinkAt = -1e9, nextBlink = performance.now() + 3000;
+    const t0 = performance.now();
+    const E = () => window.__eye || { iris: '#F5B700', glow: '#C77700', rim: '#8A3C00', alt: '#7FE3FF', round: true };
+    const mix = (hex, k) => {                                      // радужка ближе к зрачку — светлее
+      const n = parseInt(hex.slice(1), 16), c = [n >> 16, (n >> 8) & 255, n & 255].map(v => Math.round(v + (255 - v) * k));
+      return `rgb(${c[0]},${c[1]},${c[2]})`;
     };
-    const slAt = (k) => {                                           // насыщенность и светлота палитры (тёмные темы — тёмный неон)
-      const sl = window.__palSL; if (!sl) return '100% 55%';
-      const n = sl.length, i = Math.floor(((performance.now() - t0) / 1600 + k) % n); return `${sl[i][0]}% ${sl[i][1]}%`;
-    };
+    function almond(cx, cy, a, hh) {
+      g.beginPath(); g.moveTo(cx - a, cy);
+      g.bezierCurveTo(cx - a * .45, cy - hh * 1.33, cx + a * .45, cy - hh * 1.33, cx + a, cy);
+      g.bezierCurveTo(cx + a * .45, cy + hh * 1.33, cx - a * .45, cy + hh * 1.33, cx - a, cy); g.closePath();
+    }
     function frame() {
       const dpr = Math.min(devicePixelRatio || 1, 2), w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
       if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-      const mode = document.body.dataset.mode, data = mode ? null : getData(), mid = h / 2, amp = h * 0.36;
-      let sum = 0;
-      for (let i = 0; i < N; i++) {
-        const m = Math.abs(i - N / 2) / (N / 2);                 // бас в центре, верха по краям
-        const v = data ? data[2 + Math.floor(m * data.length * 0.6)] / 255 : 0;
-        lvl[i] += (v - lvl[i]) * 0.25; sum += lvl[i];
-      }
-      const loud = sum / N;
-      glow += (loud - glow) * 0.1;
-      host.style.setProperty('--lv', glow.toFixed(3));
-      if (aur && !still) aur.style.opacity = (0.65 + loud * 1.4).toFixed(2);        // фон дышит громкостью
-      if (!still) phase += 0.07 + loud * 0.2;
-      if (!still) { neonA = `hsl(${hueAt(0).toFixed(1)} ${slAt(0)})`; neonB = `hsl(${hueAt(1.5).toFixed(1)} ${slAt(1.5)})`; }
-      host.style.setProperty('--btn', neonA);                        // кнопка переливается вместе с волной, как в приложении
-      // вспышка на сильной доле: громкость резко выше средней
+      const mode = document.body.dataset.mode, data = mode ? null : getData(), now = performance.now(), t = (now - t0) / 1000;
+      let loud = 0;
+      if (data) { let s = 0; const n = Math.min(64, data.length); for (let i = 2; i < n; i++) s += data[i]; loud = s / (n - 2) / 255; }
+      lv += (loud - lv) * 0.2;
+      host.style.setProperty('--lv', lv.toFixed(3));
+      // сильная доля: громкость резко выше средней
       avg += (loud - avg) * 0.05;
-      const now = performance.now();
       const th = document.body.dataset.theme;
       const gap = { club: 120, night: 320, warm: 320, dark: 300, street: 260 }[th] || 160;
       if (!still && data && th !== 'calm' && loud - avg > (th === 'club' ? 0.04 : 0.05) && loud > 0.08 && now - lastBeat > gap) {
-        lastBeat = now; document.body.classList.add('beat'); setTimeout(() => document.body.classList.remove('beat'), 110);
+        lastBeat = now; bp = 1; document.body.classList.add('beat'); setTimeout(() => document.body.classList.remove('beat'), 110);
       }
+      bp *= 0.86;
+      const e = E();
+      host.style.setProperty('--btn', e.iris);
+      // насколько открыт глаз
+      const on = btn && btn.classList.contains('on');
+      const want = mode === 'nosig' ? 0.02 : mode === 'knock' ? 0.42 + 0.08 * Math.sin(t * 3) : (on || loud > 0.01) ? 1 : 0.16 + 0.04 * Math.sin(t * 1.3);
+      open = still ? want : open + (want - open) * 0.12;
+      if (!still && mode !== 'nosig' && now > nextBlink) { blinkAt = now; nextBlink = now + 3500 + Math.random() * 4500; }
+      const k = (now - blinkAt) / 200, bk = k >= 0 && k <= 1 ? Math.max(0.05, 1 - Math.sin(Math.PI * k)) : 1;
+      const o = open * bk;
+      const cx = w / 2, cy = h / 2, a = Math.min(w * 0.42, 165 * dpr), hb = a * 0.5, hh = Math.max(hb * o, 1.2 * dpr);
       g.clearRect(0, 0, w, h);
-      g.strokeStyle = '#EFEAE2'; g.lineJoin = 'round'; g.lineCap = 'round';
-      if (mode === 'nosig') {
-        const lg = g.createLinearGradient(0, 0, w, 0);
-        lg.addColorStop(0, 'rgba(239,234,226,0)'); lg.addColorStop(.5, 'rgba(239,234,226,.55)'); lg.addColorStop(1, 'rgba(239,234,226,0)');
-        g.strokeStyle = lg; g.lineWidth = 1.4 * dpr; g.beginPath(); g.moveTo(0, mid); g.lineTo(w, mid); g.stroke();
-        g.fillStyle = neonA; g.shadowColor = neonA; g.shadowBlur = 10 * dpr; g.beginPath(); g.arc(w / 2, mid, 3 * dpr, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0;
-        return requestAnimationFrame(frame);
+      const dim = mode === 'nosig' ? 0.35 : 1;
+      // свечение век
+      almond(cx, cy, a, hh);
+      g.save(); g.globalAlpha = dim; g.strokeStyle = e.iris; g.lineWidth = 6 * dpr; g.shadowColor = e.iris;
+      g.shadowBlur = (16 + Math.max(lv, bp * 0.6) * 26) * dpr; g.stroke(); g.restore();
+      // нутро глаза
+      g.save(); almond(cx, cy, a, hh); g.clip();
+      g.fillStyle = '#0A0603'; g.fillRect(cx - a, cy - hh * 1.4, a * 2, hh * 2.8);
+      const R = hb * 1.12, ix = cx + (still ? 0 : Math.sin(t * 0.6) * R * 0.09), iy = cy + (still ? 0 : Math.sin(t * 0.43 + 1) * R * 0.05);
+      const rg = g.createRadialGradient(ix, iy, 0, ix, iy, R), inner = mix(e.iris, 0.45);
+      rg.addColorStop(0, inner); rg.addColorStop(0.26, inner); rg.addColorStop(0.62, e.iris); rg.addColorStop(0.9, e.rim); rg.addColorStop(1, '#0A0400');
+      g.fillStyle = rg; g.beginPath(); g.arc(ix, iy, R, 0, Math.PI * 2); g.fill();
+      g.lineWidth = Math.max(1, 0.8 * dpr); g.lineCap = 'round';
+      for (let i = 0; i < 96; i++) {                                 // волокна радужки
+        const an = i / 96 * Math.PI * 2 + (i % 3) * 0.01, cs = Math.cos(an), sn = Math.sin(an);
+        const r1 = R * (0.3 + (i % 4) * 0.03), r2 = R * (0.86 - (i % 5) * 0.03);
+        g.strokeStyle = i % 3 === 0 ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.35)';
+        g.beginPath(); g.moveTo(ix + cs * r1, iy + sn * r1); g.lineTo(ix + cs * r2, iy + sn * r2); g.stroke();
       }
-      const path = (a0) => {
-        g.beginPath();
-        for (let x = 0; x <= w; x += 3 * dpr) {
-          const i = Math.min(N - 1, Math.floor(x / w * N));
-          const edge = Math.sin(Math.PI * x / w);                  // к краям волна затихает
-          const a = (a0 != null ? a0 : Math.min(1.15, 0.06 + lvl[i] * 1.25)) * amp * edge;
-          const y = mid + Math.sin(x / w * 18 + phase) * a * Math.sin(x / w * 5.3 - phase * 0.4 + 1);
-          x ? g.lineTo(x, y) : g.moveTo(x, y);
-        }
-      };
-      if (mode === 'knock') {
-        if (!still) dash -= 0.6 * dpr;
-        g.setLineDash([6 * dpr, 14 * dpr]); g.lineDashOffset = dash;
-        path(0.3); g.strokeStyle = neonB; g.shadowColor = neonB; g.shadowBlur = 10 * dpr; g.globalAlpha = 0.95; g.lineWidth = 2 * dpr; g.stroke(); g.shadowBlur = 0;
-        g.setLineDash([]); g.globalAlpha = 1;
-        return requestAnimationFrame(frame);
-      }
-      // неоновая трубка: малиновая «тень» со сдвигом, ореол второго неона, белая сердцевина
-      // звука нет (ещё не слушаем) — как в приложении: тусклая почти ровная линия, без неона
-      if (!data || loud < 0.01) {
-        path(0.035); g.strokeStyle = '#EFFBFF'; g.globalAlpha = 0.43; g.lineWidth = 1.4 * dpr; g.shadowBlur = 0; g.stroke(); g.globalAlpha = 1;
-        return requestAnimationFrame(frame);
-      }
-      g.save(); g.translate(0, 4 * dpr); path(); g.strokeStyle = neonA; g.globalAlpha = 0.55; g.lineWidth = 8 * dpr; g.shadowColor = neonA; g.shadowBlur = 18 * dpr; g.stroke(); g.restore();
-      const fat = { street: 1.8, dark: 1.4, calm: 0.7 }[document.body.dataset.theme] || 1;
-      path(); g.strokeStyle = neonB; g.globalAlpha = 0.85; g.lineWidth = 6 * fat * dpr; g.shadowColor = neonB; g.shadowBlur = 16 * dpr; g.stroke();
-      path(); g.strokeStyle = '#EFFBFF'; g.globalAlpha = 1; g.lineWidth = 1.8 * fat * dpr; g.shadowBlur = 6 * dpr; g.stroke(); g.shadowBlur = 0;
-      g.globalAlpha = 1;
+      const dil = Math.min(1.2, lv * 1.5 + bp * 0.7);
+      g.fillStyle = '#000'; g.shadowColor = 'rgba(0,0,0,.75)'; g.shadowBlur = 10 * dpr; g.beginPath();
+      if (e.round) g.arc(ix, iy, R * (0.2 + 0.17 * dil), 0, Math.PI * 2);
+      else g.ellipse(ix, iy, R * (0.09 + 0.2 * dil), R * 0.82, 0, 0, Math.PI * 2);
+      g.fill(); g.shadowBlur = 0;
+      const lg = g.createLinearGradient(0, cy - hh, 0, cy + hh);    // тень от век
+      lg.addColorStop(0, 'rgba(0,0,0,.8)'); lg.addColorStop(0.32, 'rgba(0,0,0,0)'); lg.addColorStop(0.72, 'rgba(0,0,0,0)'); lg.addColorStop(1, 'rgba(0,0,0,.6)');
+      g.fillStyle = lg; g.fillRect(cx - a, cy - hh * 1.4, a * 2, hh * 2.8);
+      g.fillStyle = 'rgba(255,255,255,.85)'; g.shadowColor = '#fff'; g.shadowBlur = 4 * dpr;   // блик на роговице
+      g.beginPath(); g.ellipse(ix - R * 0.38, iy - R * 0.4, R * 0.16, R * 0.09, -0.42, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0;
+      g.restore();
+      almond(cx, cy, a, hh); g.globalAlpha = dim; g.strokeStyle = e.iris; g.lineWidth = 2 * dpr; g.stroke(); g.globalAlpha = 1;
       requestAnimationFrame(frame);
     }
     frame();
   }
   // Оформление по треку — общее для страницы по ссылке и по Wi-Fi.
-  // Жанр (присылает ведущий) задаёт тему: характер движения, вспышек и волны, и палитру — цвета под музыку.
-  // Жанр не найден — фирменный неон.
-  // палитра [[оттенок, насыщенность, светлота] ×4] → CSS-переменные и window.__pal (по ней переливается волна)
-  function palette(cs) {
+  // Жанр (присылает ведущий) задаёт зверя: цвета глаза и форму зрачка, как в приложении.
+  // Жанр не найден — фирменные глаза: янтарный волк.
+  // палитра [радужка, свечение, ободок, глаза вдали] → CSS-переменные и window.__eye (по ней рисуется глаз)
+  function palette(cs, round) {
     const r = document.documentElement.style, names = ['--neon', '--glow', '--c3', '--c4'];
-    cs.forEach(([h, s, l], i) => r.setProperty(names[i], `hsl(${h} ${s}% ${l}%)`));
-    window.__pal = cs.map(c => c[0]); window.__palSL = cs.map(c => [c[1], c[2]]);
+    cs.forEach((c, i) => r.setProperty(names[i], c));
+    window.__eye = { iris: cs[0], glow: cs[1], rim: cs[2], alt: cs[3], round: !!round };
   }
   const PALETTES = {
-    club:   [[186, 100, 55], [312, 100, 55], [228, 100, 55], [95, 100, 55]],    // кислотный клуб
-    street: [[45, 100, 52], [280, 100, 55], [0, 100, 50], [200, 100, 55]],      // золото, фиолет, красный, синий
-    rock:   [[5, 100, 50], [24, 100, 55], [350, 100, 45], [40, 100, 55]],       // огонь
-    dark:   [[0, 100, 36], [345, 100, 30], [275, 90, 30], [14, 100, 42]],       // метал/дум: кровь, бордо, тёмный фиолет, угли
-    pop:    [[330, 100, 62], [195, 100, 60], [55, 100, 60], [285, 100, 65]],    // конфеты
-    night:  [[275, 100, 50], [315, 100, 50], [235, 100, 50], [345, 100, 55]],   // R&B: ночные неоны
-    calm:   [[175, 70, 50], [210, 70, 55], [260, 60, 60], [150, 60, 50]],       // море, небо, лаванда
-    warm:   [[35, 100, 55], [22, 100, 55], [48, 100, 55], [12, 90, 50]],        // костёр
+    club:   ['#2EE88A', '#119C5E', '#0B5A3A', '#E8FF7A'],    // кошка: изумруд
+    street: ['#D8FF3A', '#8AA800', '#3A4A00', '#FF7A1A'],    // рептилия: кислотно-жёлтый
+    rock:   ['#FFB000', '#FF5A00', '#7A2A00', '#FFE27A'],    // волк: золото и огонь
+    dark:   ['#E0122E', '#8A0018', '#3A0008', '#FF5A1F'],    // хищник в темноте: кровь, бордо
+    pop:    ['#FF7A1A', '#FF4F6E', '#7A2400', '#3FE6D8'],    // лиса: рыжий
+    night:  ['#FF9A1F', '#7A3CFF', '#6A2A00', '#FFD37A'],    // сова: медовый на фиолетовой ночи
+    calm:   ['#E8B45A', '#3FA8C8', '#5A3A10', '#9FE8E0'],    // олень: мёд, вода
+    warm:   ['#FF8A00', '#FFB347', '#7A2000', '#FFE08A'],    // тигр: огненный
   };
-  const BRAND = [[318, 100, 55], [186, 100, 55], [268, 100, 55], [222, 100, 55]];
+  const ROUND = { rock: 1, night: 1, calm: 1, warm: 1 };     // круглый зрачок; у остальных — щель
+  const BRAND = ['#F5B700', '#C77700', '#8A3C00', '#7FE3FF'];
   const THEMES = Object.keys(PALETTES);
   function look(t) {
     const id = t && THEMES.includes(t.theme) ? t.theme : '';
     if (id) document.body.dataset.theme = id; else delete document.body.dataset.theme;
     const g = $('genre'); g.hidden = !id; g.textContent = id ? String(t.genre || '').slice(0, 24) : '';
-    palette(id ? PALETTES[id] : BRAND);
+    palette(id ? PALETTES[id] : BRAND, id ? ROUND[id] : true);
   }
+  palette(BRAND, true);
+  // глаза вдали: пары огоньков проступают из темноты, моргают и гаснут
+  (function () {
+    const box = document.createElement('div'); box.className = 'eyes'; box.setAttribute('aria-hidden', 'true');
+    const spots = [[86, 19, 0], [4, 41, 3.1], [90, 55, 6.2], [5, 74, 1.6], [88, 88, 4.4], [46, 97, 8.1]];
+    spots.forEach(([x, y, d], i) => {
+      const e = document.createElement('b'); e.className = i % 2 ? 'alt' : '';
+      e.style.cssText = `left:${x}%;top:${y}%;animation-delay:-${d}s;animation-duration:${9 + i * 1.3}s`;
+      box.appendChild(e);
+    });
+    document.body.prepend(box);
+  })();
   // кнопка чата и реакции — только тем, кого пустили (или всем на relay-сервере, где не спрашивают)
   const shown = on => { $('reacts').style.display = on ? 'flex' : 'none'; $('chatBtn').style.display = on ? '' : 'none'; };
   ring($('viz'), () => { if (!analyser || !playing) return null; analyser.getByteFrequencyData(bins); return bins; });

@@ -1,8 +1,8 @@
 {
-  "versionCode": 33,
-  "versionName": "0.17.2",
-  "url": "wavecast.apk?v=33",
-  "sha256": "fd20c2b7e364bf7af5773990ec2d7f09caf5a066bbfc5a423930493125face51",
+  "versionCode": 34,
+  "versionName": "0.18.0",
+  "url": "wavecast.apk?v=34",
+  "sha256": "9f91af1044cb905e49e93147b07b787792421a6a0eb38e552158aa10d050e37d",
   "size": 1299803,
-  "notes": "Исправления: названия из Spotify, страница Wi-Fi"
+  "notes": "Новый облик «глаза зверя»: кнопка эфира стала глазом, который открывается в эфире и реагирует на музыку; цвета и зрачок — по жанру"
 }

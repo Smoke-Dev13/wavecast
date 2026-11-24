@@ -18,25 +18,26 @@ import android.widget.TextView
 
 /** Общие цвета и элементы интерфейса для всех экранов. */
 object Ui {
-    val BG = Color.parseColor("#07040F")
-    val INK = Color.parseColor("#07040F")
-    /** Основной неон (киберпанк): малиновый — кнопки и акценты. */
-    val LILAC = Color.parseColor("#FF2BD6")
+    val BG = Color.parseColor("#050302")
+    val INK = Color.parseColor("#120700")
+    /** Основной цвет (глаза зверя): янтарная радужка — кнопки и акценты. */
+    val LILAC = Color.parseColor("#F5B700")
     val NEON = LILAC
-    /** Жёлтая метка «в эфире». */
-    val VOLT = Color.parseColor("#F7F04A")
+    /** Светлая метка «в эфире» и жанр. */
+    val VOLT = Color.parseColor("#FFD37A")
     val CORAL = Color.parseColor("#F0A08C")
-    val MILK = Color.parseColor("#EFEAE2")
-    val PANEL = Color.parseColor("#231F36")
+    val MILK = Color.parseColor("#FFF4D6")
+    val PANEL = Color.parseColor("#2A1E12")
     /** Полупрозрачное «стекло» поверх свечения и тонкая светлая кромка. */
-    val GLASS = Color.parseColor("#A6140C24")
-    val EDGE = Color.parseColor("#26EFEAE2")
-    /** Второй неон: бирюзовый, в эфире — цвет обложки. */
-    val GLOW = Color.parseColor("#00E5FF")
-    val BRACKET = Color.parseColor("#E600E5FF")
+    val GLASS = Color.parseColor("#B3140C06")
+    val EDGE = Color.parseColor("#24FFF4D6")
+    /** Свечение вокруг глаза. */
+    val GLOW = Color.parseColor("#C77700")
+    /** Уголки-скобы киберпанка больше не рисуем (прозрачные). */
+    val BRACKET = 0
     /** Текущий цвет уголков-скоб: меняется вместе с неоном обложки. */
     var bracket = BRACKET
-    val DIM = Color.parseColor("#B0A2DC")
+    val DIM = Color.parseColor("#C9B89A")
 
     /** Фирменные шрифты (как на странице слушателя), лежат в assets/fonts. */
     lateinit var display: Typeface; private set
@@ -71,8 +72,8 @@ fun Activity.glass(radius: Int, fill: Int = Ui.GLASS): Drawable = GradientDrawab
     setColor(fill); cornerRadius = px(radius).toFloat(); setStroke(maxOf(1, px(1) / 2 + 1), Ui.EDGE)
 }
 
-/** Стекло с уголками-скобами осциллографа (левый верхний и правый нижний). */
-fun Activity.hud(radius: Int = 4): Drawable = HudDrawable(glass(radius), px(11).toFloat(), maxOf(1f, resources.displayMetrics.density))
+/** Стеклянная плашка со скруглением (раньше — с уголками-скобами осциллографа). */
+fun Activity.hud(radius: Int = 18): Drawable = HudDrawable(glass(maxOf(radius, 14)), px(11).toFloat(), maxOf(1f, resources.displayMetrics.density))
 
 class HudDrawable(private val base: Drawable, private val arm: Float, private val sw: Float) : Drawable() {
     private val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
@@ -81,6 +82,7 @@ class HudDrawable(private val base: Drawable, private val arm: Float, private va
     override fun onBoundsChange(b: android.graphics.Rect) { base.bounds = b }
     override fun draw(c: android.graphics.Canvas) {
         base.draw(c)
+        if (Ui.bracket ushr 24 == 0) return                  // скоб нет — только стекло
         p.color = Ui.bracket                                  // уголки — второго неона (в эфире — цвет обложки)
         val b = bounds; val h = sw / 2
         val l = b.left + h; val t = b.top + h; val r = b.right - h; val bt = b.bottom - h

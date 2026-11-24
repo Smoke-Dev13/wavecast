@@ -10,128 +10,109 @@ import android.graphics.Shader
 import android.graphics.drawable.Drawable
 
 /**
- * Фон в стиле киберпанк: ночной цвет, два неоновых сияния (малиновое и бирюзовое/из обложки), сканлайны
- * и сетка, которая видна у свечения и растворяется к краям.
- * [glowY] — центр свечения (px от верха), [lv] — громкость 0..1: свечение разгорается.
+ * Фон «глаза зверя в темноте»: тёплая ночь, мягкое свечение за главным глазом и пары глаз,
+ * которые проступают из темноты в разных местах, моргают и гаснут.
+ * [glowY] — центр свечения (px от верха), [lv] — громкость 0..1: свечение и глаза разгораются.
  */
 class Backdrop(ctx: Context) : Drawable() {
     private val dp = ctx.resources.displayMetrics.density
-    private val gridH = Paint().apply { color = 0x1A00E5FF; strokeWidth = maxOf(1f, dp * 0.6f) }
-    private val gridV = Paint().apply { color = 0x1AFF2BD6; strokeWidth = maxOf(1f, dp * 0.6f) }
-    /** Первый неон (по умолчанию малиновый), в эфире — главный цвет обложки. */
+    /** Цвет радужки (в эфире — по жанру). */
     var neonA = Ui.NEON
-        set(v) { if (field != v) { field = v; gridV.color = (v and 0xFFFFFF) or 0x1A000000; invalidateSelf() } }
-    private val scan = Paint().apply { color = 0x30000000; strokeWidth = maxOf(1f, dp * 0.5f) }
+        set(v) { if (field != v) { field = v; invalidateSelf() } }
     private val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.ADD) }
-    private val glowA = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.ADD) }
-    private var glowAKey: Triple<Int, Int, Int>? = null
-    private val fade = Paint(Paint.ANTI_ALIAS_FLAG)
     private var glowKey: Triple<Int, Int, Int>? = null
-    private var fadeKey: Triple<Int, Int, Int>? = null
+    private val night = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var nightKey: Triple<Int, Int, Int>? = null
     var glowY = -1f
         set(v) { if (field != v) { field = v; invalidateSelf() } }
-    /** Цвет свечения: по умолчанию сиреневый, во время эфира — из обложки трека. */
+    /** Цвет свечения вокруг глаза. */
     var glowColor = Ui.GLOW
-        set(v) { if (field != v) { field = v; gridH.color = (v and 0xFFFFFF) or 0x1A000000; invalidateSelf() } }
-    /** Палитра обложки (4 неона): пятна плывут по экрану из угла в угол и мигают. */
-    var palette = intArrayOf(Ui.NEON, Ui.GLOW, 0xFF8A2BFF.toInt(), 0xFF2B6BFF.toInt())
+        set(v) { if (field != v) { field = v; invalidateSelf() } }
+    /** Цвета глаз: [радужка, свечение, ободок, глаза вдали]. */
+    var palette = Themes.BRAND.copyOf()
         set(v) { field = v; invalidateSelf() }
-    /** Время в секундах — двигает пятна (задаёт главный экран, пока он открыт). */
+    /** Время в секундах — глаза вдали проступают, моргают и гаснут (задаёт главный экран). */
     var time = 0f
         set(v) { field = v; invalidateSelf() }
-    /** Вспышка на сильной доле 0..1 — пятна разом ярче. */
+    /** Вспышка на сильной доле 0..1. */
     var beat = 0f
-    /** Тема по жанру: ритм мигания, сила вспышек, стробоскоп, цветной слой. */
+    /** Тема по жанру: ритм, вспышки, стробоскоп, цветной слой. */
     var look = Themes.DEFAULT
         set(v) { field = v; overlayShader = null; invalidateSelf() }
     private var overlayShader: RadialGradient? = null
     private val overlayPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.ADD) }
     private val strobe = Paint().apply { color = 0xFFFFFFFF.toInt() }
-    private val blob = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.ADD) }
-    private val blobShaders = arrayOfNulls<RadialGradient>(4)
-    private val blobKeys = IntArray(4) { -1 }
-    private var blobR = 0f
-    private val m = android.graphics.Matrix()
-    // свои пути и ритмы у каждого пятна: частоты, сдвиги фаз, период мигания (с)
-    private val fx = floatArrayOf(0.17f, 0.13f, 0.21f, 0.11f); private val fy = floatArrayOf(0.14f, 0.19f, 0.10f, 0.16f)
-    private val ph = floatArrayOf(0f, 2.1f, 4.2f, 1.3f); private val blinkT = floatArrayOf(0.9f, 1.2f, 1.05f, 1.4f)
+    private val eyeHalo = Paint(Paint.ANTI_ALIAS_FLAG).apply { maskFilter = android.graphics.BlurMaskFilter(7 * dp, android.graphics.BlurMaskFilter.Blur.NORMAL) }
+    private val eyeCore = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val oval = android.graphics.RectF()
+    // пары глаз вдали: у каждой свой период (с) и сдвиг
+    private val per = floatArrayOf(9f, 11.5f, 13f, 10.2f, 14.5f, 12.3f)
+    private val off = floatArrayOf(0f, 3.7f, 7.1f, 1.9f, 5.3f, 9.4f)
 
-    /** Цвет «по кругу палитры» в момент [time] со сдвигом [k] — для волны и кольца кнопки. */
+    /** Цвет палитры: целый индекс — сам цвет, дробный — плавно между соседними. */
     fun colorAt(k: Float): Int {
         val pal = palette; val n = pal.size
-        val x = ((time / 1.6f + k) % n + n) % n
-        val i = x.toInt(); var f = x - i; f = f * f * (3 - 2 * f)
-        val a = FloatArray(3); val b = FloatArray(3)
-        android.graphics.Color.colorToHSV(pal[i], a); android.graphics.Color.colorToHSV(pal[(i + 1) % n], b)
-        val d = ((b[0] - a[0] + 540f) % 360f) - 180f
-        return android.graphics.Color.HSVToColor(floatArrayOf((a[0] + d * f + 360f) % 360f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f))
+        val x = ((k % n) + n) % n; val i = x.toInt(); val f = x - i
+        return android.animation.ArgbEvaluator().evaluate(f, pal[i], pal[(i + 1) % n]) as Int
     }
 
     var lv = 0f
         set(v) { if (Math.abs(field - v) > 0.004f) { field = v; invalidateSelf() } }
 
+    private fun hash(a: Int, b: Int): Float {
+        var h = a * 374761393 + b * 668265263; h = (h xor (h ushr 13)) * 1274126177; h = h xor (h ushr 16)
+        return (h and 0xFFFF) / 65535f
+    }
+
     override fun draw(c: Canvas) {
         val b = bounds; val w = b.width().toFloat(); val h = b.height().toFloat()
         c.drawColor(Ui.BG)
         val cx = w / 2f; val cy = if (glowY >= 0) glowY else h * 0.4f
-        // свечение: радиальный градиент вместо размытия, чтобы не нагружать отрисовку
-        val q = (lv * 40).toInt() / 40f                       // ступеньки громкости: глазу незаметно, градиент реже
-        val r = 200 * dp * (0.95f + q * 0.2f)
-        val a = (0.85f + q * 0.15f).coerceAtMost(1f)
+        // тёплая темнота: к центру чуть светлее, к краям — чёрная
+        val nr = maxOf(w, h) * 0.75f
+        val nk = Triple(cx.toInt(), cy.toInt(), nr.toInt())
+        if (nk != nightKey) { nightKey = nk; night.shader = RadialGradient(cx, cy, nr, intArrayOf(0xFF1A0E05.toInt(), 0xFF070402.toInt(), 0xFF000000.toInt()), floatArrayOf(0f, 0.6f, 1f), Shader.TileMode.CLAMP) }
+        c.drawRect(0f, 0f, w, h, night)
+        // свечение за глазом: дышит громкостью и вспыхивает на долях
+        val q = (lv * 40).toInt() / 40f
+        val r = 230 * dp * (0.95f + q * 0.25f)
+        val a = (0.42f + q * 0.35f + beat * 0.25f * look.beat).coerceAtMost(1f)
         val core = (glowColor and 0xFFFFFF) or ((a * 255).toInt() shl 24)
-        val mid = (glowColor and 0xFFFFFF) or ((a * 110).toInt() shl 24)
-        // киберпанк: малиновый неон слева (постоянный) + второй неон справа (бирюза или цвет обложки), складываются
-        // градиенты пересоздаём только когда что-то поменялось, а не каждый кадр
-        val ax = cx - 62 * dp; val bx = cx + 58 * dp; val by = cy + 10 * dp
-        val ra = 200 * dp * (0.97f + q * 0.1f)
-        val ka = Triple(ax.toInt() * 31 + cy.toInt(), (ra / dp).toInt(), neonA)
-        if (ka != glowAKey) { glowAKey = ka
-            val rgb = neonA and 0xFFFFFF
-            glowA.shader = RadialGradient(ax, cy, ra, intArrayOf(rgb or 0xF2000000.toInt(), rgb or 0x66000000, 0), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP) }
-        c.drawCircle(ax, cy, ra, glowA)
-        val key = Triple(bx.toInt() * 31 + by.toInt(), (r / dp).toInt(), core)
-        if (key != glowKey) { glowKey = key; glow.shader = RadialGradient(bx, by, r, intArrayOf(core, mid, 0), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP) }
-        c.drawCircle(bx, by, r, glow)
-        // сетка 26dp: горизонтали бирюзовые, вертикали малиновые
-        val step = 26 * dp
-        var x = (cx % step); while (x < w) { c.drawLine(x, 0f, x, h, gridV); x += step }
-        var y = (cy % step); while (y < h) { c.drawLine(0f, y, w, y, gridH); y += step }
-        // к краям сетка растворяется в ночном фоне
-        val fr = maxOf(w, h) * 0.62f
-        val fk = Triple(cx.toInt(), cy.toInt(), fr.toInt())
-        if (fk != fadeKey) { fadeKey = fk; fade.shader = RadialGradient(cx, cy, fr, intArrayOf(0, 0, Ui.BG), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP) }
-        c.drawRect(0f, 0f, w, h, fade)
-        // живой неон: 4 пятна цветов обложки плывут из угла в угол, мигают, на сильной доле вспыхивают
-        val br = maxOf(w, h) * 0.42f
-        if (br != blobR) { blobR = br; blobKeys.fill(-1) }
-        for (k in 0 until 4) {
-            val col = palette[k % palette.size]
-            if (blobKeys[k] != col) {
-                blobKeys[k] = col; val rgb = col and 0xFFFFFF
-                blobShaders[k] = RadialGradient(0f, 0f, br, intArrayOf(rgb or 0xFF000000.toInt(), rgb or 0x8C000000.toInt(), 0), floatArrayOf(0f, 0.38f, 1f), Shader.TileMode.CLAMP)
+        val key = Triple(cy.toInt() * 31 + cx.toInt(), (r / dp).toInt(), core)
+        if (key != glowKey) { glowKey = key; glow.shader = RadialGradient(cx, cy, r, intArrayOf(core, (core and 0xFFFFFF) or ((a * 90).toInt() shl 24), 0), floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP) }
+        c.drawCircle(cx, cy, r, glow)
+        // глаза вдали: проступают в случайном месте, держатся, моргают, гаснут — и появляются в другом
+        for (k in per.indices) {
+            val p = per[k] * look.bk.coerceIn(0.6f, 1.6f)
+            val tt = time + off[k]; val cyc = (tt / p).toInt(); val ph = tt / p - cyc
+            val env = when { ph < 0.12f -> ph / 0.12f; ph < 0.78f -> 1f; ph < 0.9f -> 1f - (ph - 0.78f) / 0.12f; else -> 0f }
+            if (env <= 0f) continue
+            var ex = w * (0.07f + 0.86f * hash(k, cyc)); val ey = h * (0.07f + 0.86f * hash(k + 17, cyc))
+            if (Math.abs(ey - cy) < 150 * dp && Math.abs(ex - cx) < w * 0.32f) ex = if (ex < cx) w * 0.08f else w * 0.92f   // не поверх главного глаза
+            val bl = Math.abs(ph - 0.45f).let { if (it < 0.02f) 0.1f else 1f } * Math.abs(ph - 0.66f).let { if (it < 0.02f) 0.1f else 1f }
+            val s = (3.5f + 3f * hash(k + 5, cyc)) * dp; val gap = s * 1.9f
+            val col = palette[if (k % 2 == 0) 0 else 3 % palette.size]
+            val al = (env * (0.65f + lv * 0.5f + beat * 0.3f)).coerceAtMost(1f)
+            for (side in intArrayOf(-1, 1)) {
+                val x = ex + side * gap / 2f
+                oval.set(x - s, ey - s * 0.5f * bl, x + s, ey + s * 0.5f * bl)
+                eyeHalo.color = col; eyeHalo.alpha = (al * 200).toInt()
+                c.drawOval(oval.left - s * 0.6f, oval.top - s * 0.6f, oval.right + s * 0.6f, oval.bottom + s * 0.6f, eyeHalo)
+                eyeCore.color = col; eyeCore.alpha = (al * 255).toInt()
+                c.drawOval(oval, eyeCore)
             }
-            val bx = w * (0.5f + 0.62f * Math.sin((time * fx[k] * 6.283f + ph[k]).toDouble()).toFloat())
-            val by = h * (0.5f + 0.6f * Math.sin((time * fy[k] * 6.283f + ph[k] * 1.7f).toDouble()).toFloat())
-            val blink = 0.5f + 0.5f * Math.sin((time / (blinkT[k] * look.bk) * 6.283f + ph[k]).toDouble()).toFloat()
-            val al = ((0.14f + 0.6f * blink) * (0.75f + lv * 0.9f) * (1f + beat * 1.4f * look.beat)).coerceAtMost(1f)
-            m.setTranslate(bx, by); blobShaders[k]!!.setLocalMatrix(m)
-            blob.shader = blobShaders[k]; blob.alpha = (al * 255).toInt()
-            c.drawCircle(bx, by, br, blob)
         }
         // огонь снизу (рок) или тёплый свет сверху (фолк)
         if (look.overlay != 0) {
             if (overlayShader == null) {
                 val ox = if (look.overlayTop) w * 0.3f else w * 0.5f; val oy = if (look.overlayTop) h * 0.2f else h * 1.05f
                 val rgb = look.overlay and 0xFFFFFF
-                overlayShader = RadialGradient(ox, oy, maxOf(w, h) * 0.6f, intArrayOf(rgb or 0xD0000000.toInt(), rgb or 0x55000000, 0), floatArrayOf(0f, 0.4f, 1f), Shader.TileMode.CLAMP)
+                overlayShader = RadialGradient(ox, oy, maxOf(w, h) * 0.6f, intArrayOf(rgb or 0x80000000.toInt(), rgb or 0x30000000, 0), floatArrayOf(0f, 0.4f, 1f), Shader.TileMode.CLAMP)
             }
             overlayPaint.shader = overlayShader; c.drawRect(0f, 0f, w, h, overlayPaint)
         }
         // стробоскоп на ударе (клуб)
-        if (look.strobe && beat > 0.3f) { strobe.alpha = (beat * 42).toInt(); c.drawRect(0f, 0f, w, h, strobe) }
-        // сканлайны, как на старом экране
-        val sStep = 3 * dp
-        var sy = 0f; while (sy < h) { c.drawLine(0f, sy, w, sy, scan); sy += sStep }
+        if (look.strobe && beat > 0.3f) { strobe.alpha = (beat * 36).toInt(); c.drawRect(0f, 0f, w, h, strobe) }
     }
 
     override fun setAlpha(alpha: Int) {}
@@ -140,7 +121,7 @@ class Backdrop(ctx: Context) : Drawable() {
         /** Палитра обложки для неона: до 4 заметных оттенков (не ближе 45°) на полной яркости,
          *  не хватает — соседние к главному; серая или без обложки — малиновый, бирюзовый, фиолетовый, синий. */
         fun paletteFrom(bmp: android.graphics.Bitmap?): IntArray {
-            val def = intArrayOf(Ui.NEON, Ui.GLOW, 0xFF8A2BFF.toInt(), 0xFF2B6BFF.toInt())
+            val def = Themes.BRAND.copyOf()
             if (bmp == null) return def
             return try {
                 val n = 16

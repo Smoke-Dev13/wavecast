@@ -110,7 +110,7 @@ class MainActivity : Activity() {
             animTime += (total - lastTotal) / 1000f / backdrop.look.mv      // темп — по жанру
             lastTotal = total
             backdrop.time = animTime
-            btn.neonA = backdrop.colorAt(0f); btn.neonB = backdrop.colorAt(1.5f)
+            btn.time = animTime
         }
     }
 
@@ -200,7 +200,7 @@ class MainActivity : Activity() {
         tvLive.text = if (on) "В ЭФИРЕ" else "НЕ В ЭФИРЕ"
         tvLive.setTextColor(if (on) Ui.VOLT else Ui.DIM)
         tvLive.setCompoundDrawablesRelativeWithIntrinsicBounds(dot(if (on) Ui.VOLT else Ui.DIM), null, null, null)
-        tvLive.background = if (on) GradientDrawable().apply { setColor(0x33F7F04A); cornerRadius = px(99).toFloat(); setStroke(px(1), Ui.VOLT) } else glass(99)
+        tvLive.background = if (on) GradientDrawable().apply { setColor(0x33FFD37A); cornerRadius = px(99).toFloat(); setStroke(px(1), Ui.VOLT) } else glass(99)
         tvLive.setShadowLayer(if (on) px(8).toFloat() else 0f, 0f, 0f, Ui.VOLT)
 
         if (tvRoom.text.toString() != s.room) { tvRoom.text = s.room; fitOneLine(tvRoom) }
@@ -226,7 +226,7 @@ class MainActivity : Activity() {
         if (tintKey !== tintFor) {
             tintFor = tintKey
             // палитра обложки перетекает: пятна фона, сияния, волна, кнопка, уголки, подсветка текста
-            val to = themePal ?: Backdrop.paletteFrom(null)         // цвета под музыку: по жанру; жанр не найден — фирменный неон, не кадр клипа
+            val to = themePal ?: Themes.BRAND                       // глаза под музыку: по жанру; жанр не найден — фирменный янтарный волк
             val from = backdrop.palette.copyOf()
             val ev = android.animation.ArgbEvaluator()
             tintAnim?.cancel()
@@ -236,11 +236,10 @@ class MainActivity : Activity() {
                     val f = it.animatedFraction
                     val pal = IntArray(4) { i -> ev.evaluate(f, from[i], to[i]) as Int }
                     backdrop.palette = pal
-                    backdrop.neonA = pal[0]; backdrop.glowColor = pal[1]
-                    tvNow.setShadowLayer(px(10).toFloat(), 0f, 0f, pal[1])
+                    backdrop.neonA = pal[0]; backdrop.glowColor = pal[1]; btn.palette = pal
+                    tvNow.setShadowLayer(px(12).toFloat(), 0f, 0f, pal[1])
                     tvRoom.setShadowLayer(px(9).toFloat(), px(1).toFloat(), 0f, pal[0])
                     brand.setShadowLayer(px(6).toFloat(), px(1).toFloat(), 0f, pal[0])
-                    Ui.bracket = (pal[1] and 0xFFFFFF) or 0xE6000000.toInt()
                     tiles.invalidate(); for (i in 0 until tiles.childCount) tiles.getChildAt(i).invalidate(); ivNow.invalidate()
                 }
                 start()
