@@ -56,6 +56,11 @@ class Backdrop(ctx: Context) : Drawable() {
     private val fx = floatArrayOf(0.17f, 0.13f, 0.21f, 0.11f); private val fy = floatArrayOf(0.14f, 0.19f, 0.10f, 0.16f)
     private val ph = floatArrayOf(0f, 2.1f, 4.2f, 1.3f); private val blinkT = floatArrayOf(0.9f, 1.2f, 1.05f, 1.4f)
 
+    private fun qh(a: Int, b: Int): Float {
+        var x = a * 374761393 + b * 668265263; x = (x xor (x ushr 13)) * 1274126177; x = x xor (x ushr 16)
+        return (x and 0xFFFF) / 65535f
+    }
+
     /** Цвет «по кругу палитры» в момент [time] со сдвигом [k] — для волны и кольца кнопки. */
     fun colorAt(k: Float): Int {
         val pal = palette; val n = pal.size
@@ -110,10 +115,13 @@ class Backdrop(ctx: Context) : Drawable() {
                 blobKeys[k] = col; val rgb = col and 0xFFFFFF
                 blobShaders[k] = RadialGradient(0f, 0f, br, intArrayOf(rgb or 0xFF000000.toInt(), rgb or 0x8C000000.toInt(), 0), floatArrayOf(0f, 0.38f, 1f), Shader.TileMode.CLAMP)
             }
-            val bx = w * (0.5f + 0.62f * Math.sin((time * fx[k] * 6.283f + ph[k]).toDouble()).toFloat())
-            val by = h * (0.5f + 0.6f * Math.sin((time * fy[k] * 6.283f + ph[k] * 1.7f).toDouble()).toFloat())
-            val blink = 0.5f + 0.5f * Math.sin((time / (blinkT[k] * look.bk) * 6.283f + ph[k]).toDouble()).toFloat()
-            val al = ((0.14f + 0.6f * blink) * (0.75f + lv * 0.9f) * (1f + beat * 1.4f * look.beat)).coerceAtMost(1f)
+            // квантовые скачки: пятно не плывёт, а гаснет и загорается уже в другом месте
+            val per = (2.2f + k * 0.55f) * look.bk.coerceIn(0.5f, 2f)
+            val tt = time + ph[k] * 1.3f; val slot = (tt / per).toInt(); val f = tt / per - slot
+            val bx = w * (-0.05f + 1.1f * qh(k, slot)); val by = h * (-0.05f + 1.1f * qh(k + 9, slot))
+            val env = when { f < 0.18f -> f / 0.18f; f < 0.72f -> 1f; f < 0.92f -> 1f - (f - 0.72f) / 0.2f; else -> 0f }
+            val blink = env * (0.75f + 0.25f * Math.sin((time / (blinkT[k] * look.bk) * 6.283f + ph[k]).toDouble()).toFloat())
+            val al = ((0.03f + 0.72f * blink) * (0.75f + lv * 0.9f) * (1f + beat * 1.4f * look.beat)).coerceAtMost(1f)
             m.setTranslate(bx, by); blobShaders[k]!!.setLocalMatrix(m)
             blob.shader = blobShaders[k]; blob.alpha = (al * 255).toInt()
             c.drawCircle(bx, by, br, blob)

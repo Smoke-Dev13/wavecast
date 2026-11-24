@@ -79,6 +79,10 @@ class PulseButton(ctx: Context) : View(ctx) {
     private val dp = resources.displayMetrics.density
     private val eye = Path()
     private val eye2 = Path()
+    private val pm = android.graphics.PathMeasure()
+    private val pos = FloatArray(2)
+    private val dot = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var col = 0f
     private val hudP = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeWidth = maxOf(1f, 1.3f * resources.displayMetrics.density) }
     private val m = android.graphics.Matrix()
     private val inside = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xE007040F.toInt() }
@@ -164,8 +168,33 @@ class PulseButton(ctx: Context) : View(ctx) {
         val a = minOf(w * 0.42f, 165 * dp) * press; halfW = a
         val hb = a * 0.5f
         val hh = maxOf(hb * o, 1.2f * dp)
-        cyber(cx, cy, a, hh)
         val lv = (smooth + flash * 0.5f).coerceAtMost(1f)
+        // квантовая суперпозиция: между ударами глаз сразу в нескольких состояниях,
+        // на сильной доле (и от громкости) схлопывается в один чёткий
+        col = maxOf(col * (0.94f + 0.045f * smooth), bp, if (live) smooth * 0.7f else 0f)
+        val spread = if (live) (1f - col).coerceIn(0f, 1f) else 1f
+        if (spread > 0.02f) {
+            val opens = floatArrayOf(0.55f, 0.85f, 1.2f)
+            for (g in 0 until 3) {
+                val jx = Math.sin(t * (1.7 + g * 0.9) + g * 2).toFloat() * 12 * dp * spread
+                val jy = Math.cos(t * (2.3 + g * 0.7) + g).toFloat() * 6 * dp * spread
+                cyber(cx + jx, cy + jy, a * (0.96f + 0.03f * g), maxOf(hb * minOf(o * opens[g], 1.15f), 1.2f * dp))
+                lidLine.color = if (g % 2 == 0) mainC else glowC; lidLine.alpha = (120 * spread).toInt()
+                c.drawPath(eye, lidLine)
+            }
+            // контур рассыпается на дрожащие частицы
+            cyber(cx, cy, a, hh); pm.setPath(eye, true); val len = pm.length
+            dot.color = mainC; dot.alpha = (210 * spread).toInt()
+            for (i in 0 until 72) {
+                pm.getPosTan(len * i / 72f, pos, null)
+                val jr = 14 * dp * spread * Math.sin(t * 7.0 + i * 1.7).toFloat()
+                c.drawCircle(pos[0] + jr * Math.cos(i * 2.4).toFloat(), pos[1] + jr * Math.sin(i * 2.4).toFloat(), 1.5f * dp, dot)
+            }
+            lidLine.alpha = 255
+        }
+        val mainA = if (live) 0.3f + 0.7f * (1f - spread) else 0.22f + 0.1f * reveal
+        val layer = c.saveLayerAlpha(0f, 0f, w, height.toFloat(), (mainA * 255).toInt())
+        cyber(cx, cy, a, hh)
         val glitch = if (live) bp else 0f
 
         // глитч на ударе: контур расслаивается на красную и голубую копии
@@ -271,6 +300,7 @@ class PulseButton(ctx: Context) : View(ctx) {
             c.save(); c.clipRect(cx - a - 20 * dp, band, cx + a + 20 * dp, band + bh)
             c.translate(((Math.random() - 0.5) * 24 * dp).toFloat(), 0f); lidLine.color = redC; c.drawPath(eye, lidLine); c.restore()
         }
+        c.restoreToCount(layer)
         postInvalidateOnAnimation()
     }
 
