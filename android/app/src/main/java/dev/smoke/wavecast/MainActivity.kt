@@ -565,7 +565,7 @@ class MainActivity : Activity() {
     private fun openAppDetails() = startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
         android.net.Uri.parse("package:$packageName")))
 
-    /** Реакция слушателя «туннелирует»: мелькает у края и проявляется внутри глаза. */
+    /** Реакция слушателя всплывает над кнопкой эфира. */
     private fun floatReaction(name: String, e: String) {
         if (!CaptureService.status.running || floats.childCount > 20) return
         val v = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
@@ -573,20 +573,11 @@ class MainActivity : Activity() {
         v.addView(label(name.take(12), 11f, Ui.DIM, Ui.bold))
         tileReact.text = "${CaptureService.reactionCount}"
         val lp = android.widget.FrameLayout.LayoutParams(android.widget.FrameLayout.LayoutParams.WRAP_CONTENT, android.widget.FrameLayout.LayoutParams.WRAP_CONTENT)
-        // квантовое туннелирование: реакция мелькает у края экрана, исчезает и проявляется внутри глаза
-        val left = Math.random() < 0.5
-        lp.leftMargin = if (left) px(10) else (floats.width - px(60)).coerceAtLeast(0); lp.topMargin = (floats.height * (0.2 + Math.random() * 0.5)).toInt()
+        lp.leftMargin = (floats.width * (0.25 + Math.random() * 0.45)).toInt(); lp.topMargin = (floats.height * 0.5).toInt()
         floats.addView(v, lp)
-        v.alpha = 0f
-        v.animate().alpha(0.9f).setDuration(160).withEndAction {
-            v.animate().alpha(0f).setDuration(140).withEndAction {
-                val tx = floats.width / 2f - v.width / 2f + (Math.random() * 2 - 1).toFloat() * px(40) - lp.leftMargin
-                val ty = floats.height / 2f - v.height / 2f + (Math.random() * 2 - 1).toFloat() * px(18) - lp.topMargin
-                v.translationX = tx; v.translationY = ty; v.scaleX = 0.3f; v.scaleY = 0.3f
-                v.animate().alpha(1f).scaleX(1.15f).scaleY(1.15f).setDuration(220).withEndAction {
-                    v.animate().alpha(0f).scaleX(0.2f).scaleY(0.2f).setStartDelay(700).setDuration(500).withEndAction { floats.removeView(v) }.start()
-                }.start()
-            }.start()
+        v.alpha = 0f; v.scaleX = 0.6f; v.scaleY = 0.6f
+        v.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(-px(40).toFloat()).setDuration(260).withEndAction {
+            v.animate().alpha(0f).translationY(-px(190).toFloat()).setDuration(1900).withEndAction { floats.removeView(v) }.start()
         }.start()
     }
 
